@@ -1,6 +1,6 @@
 # 更新日志
 
-## 0.1.0 — 首个版本（未发布）
+## 0.1.0 — 首个版本（2026-10-07）
 
 第一个可用版本。功能对齐 [F1-RaceControl](https://github.com/Xixixiao2007/F1-RaceControl) 安卓版。
 
