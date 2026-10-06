@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    看板原生窗口。
+
+    为什么单独的 C# 工程，而不是用 Edge 的 app 模式窗口：
+    用户明确要求"像微信/QQ 那种可以单独移动调整大小的窗口"，
+    任务栏图标应该是我们自己的程序，而不是一个浏览器。
+
+    这里只负责"画窗口 + 装一个 WebView2 显示网页"，
+    界面本身仍然是 Java 侧那一份 HTML/JS（唯一实现，不会有两套渲染）。
+
+    注意：XML 注释里不能出现连续两个减号（连"双减号"当装饰都不行），
+    所以这段文字里描述命令行参数时没写那两个破折号。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>F1BoardWindow</AssemblyName>
+    <RootNamespace>F1BoardWindow</RootNamespace>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- 关掉一堆用不到的构建产物噪音 -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableDefaultItems>true</EnableDefaultItems>
+    <!--
+      MSB3277：WebView2 包同时带了 WinForms 和 WPF 两个程序集，
+      而 WPF 那个引用的是 WindowsBase 5.0，和 net9.0 的 4.0 冲突。
+      我们只用 WinForms 控件，这个冲突不会走到，静掉即可。
+    -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+
+</Project>

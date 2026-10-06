@@ -1,0 +1,7 @@
+# 一律不做行尾转换。
+#
+# ★ 这不是洁癖，是必须的：shared/ 里每个文件都有 SHA256 记在
+#   shared/PROVENANCE.json 里，tools/sync_shared.py --check 会校验。
+#   如果检出时被 git 改成 CRLF，哈希就对不上，全新 clone 之后校验必然失败 ——
+#   而那个校验正是"桌面版与安卓版有没有漂移"的唯一依据。
+* -text

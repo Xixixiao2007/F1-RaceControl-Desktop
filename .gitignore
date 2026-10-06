@@ -1,0 +1,21 @@
+# 构建产物
+build/
+dist/
+native/**/bin/
+native/**/obj/
+
+# Python
+__pycache__/
+*.pyc
+
+# 编辑器 / 系统
+.vs/
+.idea/
+*.user
+*.suo
+Thumbs.db
+desktop.ini
+
+# 本地临时
+*.log
+*.tmp

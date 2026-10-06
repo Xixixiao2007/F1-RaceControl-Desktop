@@ -1,0 +1,190 @@
+/* F1-Race Control 界面样式。
+   主界面和独立看板共用。深色 + 紧凑，是为了在电视/显示器上一眼扫到异常。 */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #0d1117;
+  color: #e6edf3;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+#main, #board { height: 100%; display: flex; flex-direction: column; }
+
+/* ---------- 主界面：头 ---------- */
+.m-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; background: #161b22; border-bottom: 1px solid #21262d;
+  flex: 0 0 auto;
+}
+.m-title { font-size: 17px; font-weight: 600; letter-spacing: .3px; }
+.m-sub { font-size: 12px; color: #8b949e; margin-top: 2px; }
+.m-status { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #8b949e; }
+
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #f85149; display: inline-block; }
+.dot.ok { background: #3fb950; }
+.badge {
+  background: #21262d; border: 1px solid #30363d; border-radius: 10px;
+  padding: 1px 8px; font-size: 11px; color: #8b949e;
+}
+
+/* ---------- 顶部旗语栏 ---------- */
+.m-flags { flex: 0 0 auto; padding: 6px 10px 0; }
+.flags {
+  display: flex; height: 54px; border-radius: 6px; overflow: hidden;
+  border: 1px solid #30363d;
+}
+.flag-seg {
+  flex: 1 1 0; min-width: 40px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; overflow: hidden;
+  border-right: 1px solid rgba(0,0,0,.45);
+}
+.flag-seg:last-child { border-right: none; }
+.flag-kind { font-size: 12px; font-weight: 700; color: #10151b; }
+.flag-sectors { font-size: 10px; color: rgba(0,0,0,.62); white-space: nowrap; }
+.flag-none {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #adbac7;
+}
+.flag-summary { font-size: 12px; padding: 4px 2px 6px; font-weight: 600; }
+
+/* ---------- 主界面：左右分栏 ---------- */
+.m-body { flex: 1 1 auto; display: flex; min-height: 0; }
+.m-left {
+  flex: 0 0 32%; min-width: 220px; padding: 8px 4px 10px 12px;
+  display: flex; flex-direction: column; gap: 8px; min-height: 0;
+}
+.m-ring { flex: 1 1 auto; min-height: 0; }
+.m-msgs { flex: 1 1 46%; min-height: 90px; }
+.ring { display: block; }
+
+/* ---------- 通报横幅 ---------- */
+.m-banner {
+  flex: 0 0 auto; display: flex; align-items: baseline; gap: 8px;
+  margin: 6px 10px 0; padding: 5px 10px; border-radius: 5px;
+  background: #1b2129; border-left: 3px solid #f0883e;
+  font-size: 13px; overflow: hidden;
+}
+.banner-time { color: #7d8590; font-size: 11px; font-variant-numeric: tabular-nums; }
+.banner-text { font-weight: 600; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.banner-en { color: #6e7681; font-size: 11px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- 通报列表 ---------- */
+.msgs { display: flex; flex-direction: column; gap: 2px; }
+.msg {
+  display: flex; gap: 6px; align-items: baseline; font-size: 12px;
+  padding: 2px 4px; border-radius: 3px; background: #12171e;
+}
+.msg.newest { background: #1d2530; }
+.mtime { color: #6e7681; font-size: 10px; font-variant-numeric: tabular-nums;
+  flex: 0 0 auto; }
+.mcat {
+  flex: 0 0 auto; font-size: 9px; padding: 0 5px; border-radius: 7px;
+  background: #30363d; color: #adbac7;
+}
+.mtext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.m-grid {
+  flex: 1 1 auto; display: grid; gap: 8px; padding: 8px 12px 10px 8px;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  min-height: 0;
+}
+
+.panel {
+  background: #161b22; border: 1px solid #21262d; border-radius: 6px;
+  padding: 6px 8px; overflow: auto; min-height: 0;
+}
+.ptitle {
+  font-size: 12px; font-weight: 700; color: #7d8590;
+  text-transform: none; margin-bottom: 4px; letter-spacing: .4px;
+}
+.big { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
+.sub { font-size: 12px; color: #8b949e; }
+
+/* ---------- 看板（独立窗口） ---------- */
+.b-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; background: #161b22; border-bottom: 1px solid #21262d;
+  flex: 0 0 auto;
+}
+.b-title { font-size: 13px; font-weight: 700; }
+.b-sub { font-size: 11px; color: #8b949e; margin-left: auto; }
+.b-box { flex: 1 1 auto; padding: 8px 10px; overflow: auto; min-height: 0; }
+.b-box.b-ring { padding: 0; }
+.b-flags { padding: 6px 8px; }
+
+/* ---------- 表格 ---------- */
+table.timing { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.timing th {
+  text-align: left; color: #7d8590; font-weight: 600; font-size: 11px;
+  padding: 2px 4px; border-bottom: 1px solid #21262d;
+}
+table.timing td { padding: 3px 4px; border-bottom: 1px solid #1b2129; }
+table.timing tr.retired td { color: #6e7681; text-decoration: line-through; }
+table.timing tr.inpitt td { background: #1d2530; }
+td.num { width: 30px; color: #8b949e; }
+td.who { white-space: nowrap; }
+td.mono, .mono { font-variant-numeric: tabular-nums; }
+.teambar {
+  display: inline-block; width: 3px; height: 11px; margin-right: 6px;
+  vertical-align: -1px; border-radius: 1px;
+}
+table.kv { width: 100%; font-size: 12px; border-collapse: collapse; }
+table.kv th {
+  text-align: left; width: 62px; color: #7d8590; font-weight: 500;
+  padding: 2px 4px 2px 0; vertical-align: top;
+}
+table.kv td { padding: 2px 0; }
+
+/* ---------- 轮胎面板 3 列 × 8 行 ---------- */
+.tyres { display: grid; gap: 3px; height: 100%; }
+.tcell {
+  display: flex; align-items: center; gap: 4px; padding: 2px 4px;
+  background: #1b2129; border-radius: 3px; font-size: 11px;
+  min-height: 22px; overflow: hidden; white-space: nowrap;
+}
+.tcell.empty { background: #12171e; }
+.tpos { color: #8b949e; width: 18px; }
+.ttla { font-weight: 700; }
+.ttyre {
+  border: 1px solid #555; border-radius: 8px; padding: 0 5px;
+  font-size: 10px; color: #c9d1d9;
+}
+.tlaps { color: #8b949e; }
+.tpit { color: #f0883e; font-size: 10px; }
+
+/* ---------- 天气 ---------- */
+.weather { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.wcell { background: #1b2129; border-radius: 4px; padding: 6px 8px; }
+.wlabel { font-size: 11px; color: #7d8590; }
+.wvalue { font-size: 16px; font-weight: 600; }
+
+/* ---------- 旗语 chips ---------- */
+.kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip {
+  font-size: 10px; padding: 1px 7px; border-radius: 9px; color: #10151b;
+  font-weight: 700;
+}
+.top3 { font-size: 12px; }
+.top3row { padding: 1px 0; }
+
+/* ---------- 手机 / 窄屏：竖排 ---------- */
+@media (max-width: 820px) {
+  .m-body { flex-direction: column; overflow: auto; }
+  .m-left { flex: 0 0 auto; min-height: 0; padding: 8px 12px 0; }
+  .m-ring { flex: 0 0 auto; height: 46vw; min-height: 200px; }
+  .m-msgs { flex: 0 0 auto; max-height: 34vh; }
+  .m-grid {
+    grid-template-columns: 1fr; grid-template-rows: none;
+    padding: 8px 12px 12px;
+  }
+  .panel { min-height: 160px; }
+  .m-head { flex-wrap: wrap; gap: 6px; }
+  .m-title { font-size: 15px; }
+}
