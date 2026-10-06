@@ -90,7 +90,8 @@ python tools\build.py --run -- --replay ..\F1-RaceControl\tools\mock_data\bahrai
 
 窗口位置和大小**会被记住**（按看板 id 存在 `%LOCALAPPDATA%\F1-RaceControl-Desktop\windows\`），
 摆一次就够了。`F11` 全屏，`Esc` 退出全屏。
-（位置是在每次移动/缩放**结束时**存的，所以即使用网页上的「收回」强制关窗也不会丢。）
+（位置不用等关窗：每次移动/缩放**停手约 1 秒**后就写下了，
+所以即使用网页上的「收回」强制关窗也不会丢。）
 
 ## 功能一致是怎么保证的
 

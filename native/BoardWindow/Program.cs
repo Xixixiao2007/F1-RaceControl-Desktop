@@ -61,6 +61,8 @@ namespace F1BoardWindow
     {
         private readonly Args _a;
         private readonly WebView2 _view;
+        private readonly System.Windows.Forms.Timer _saveTimer =
+            new System.Windows.Forms.Timer();
         private bool _fullscreen;
         private Rectangle _restoreBounds;
         private FormBorderStyle _restoreStyle;
@@ -88,6 +90,34 @@ namespace F1BoardWindow
 
             Load += OnLoadAsync;
             FormClosing += OnClosing;
+
+            // 位置/大小在**改动停下来之后**就写盘，而不是只等关闭时写。
+            //
+            // 为什么不能只靠 FormClosing：从网页上点「收回」是强杀
+            // （Java 侧 Process.destroy），根本不走 FormClosing —— 那样用户
+            // 刚摆好的位置就白摆了。这里用 Move + Resize 加一个 1 秒防抖：
+            // 拖拽过程中不反复写文件，松手 1 秒后存一次。
+            _saveTimer.Interval = 1000;
+            _saveTimer.Tick += OnSaveTick;
+            Move += OnBoundsChanged;
+            Resize += OnBoundsChanged;
+        }
+
+        private void OnBoundsChanged(object sender, EventArgs e)
+        {
+            _saveTimer.Stop();
+            _saveTimer.Start();
+        }
+
+        private void OnSaveTick(object sender, EventArgs e)
+        {
+            _saveTimer.Stop();
+            // 全屏/最大化时不覆盖上次记下的普通位置，否则下次打开就变全屏了。
+            if (_fullscreen || WindowState != FormWindowState.Normal)
+            {
+                return;
+            }
+            WindowMemory.Save(_a.Key, Bounds);
         }
 
         private async void OnLoadAsync(object sender, EventArgs e)

@@ -149,42 +149,26 @@ public final class Boards {
     /**
      * 关掉一个由我们拉起的看板窗口。
      *
-     * 用 taskkill /T 连子进程一起收：WebView2 自己会派生好几个进程，
-     * 只杀外层那个会留下孤儿进程，任务管理器里还能看到一堆。
+     * 只用 {@code destroy()}，**没有** taskkill —— 这是实测之后的结论，不是偷懒：
      *
-     * ★ 强制结束不会触发窗口的 FormClosing，所以窗口位置不是靠"关闭时保存"
-     *   才记住的 —— F1BoardWindow 在每次移动/缩放结束时就已经存过了。
+     * 1) Java 8 上根本拿不到子进程的 pid。{@code Process.pid()} 是 Java 9 才有的，
+     *    而 Java 8 的 ProcessImpl 连 {@code toString()} 都没重写（实测就是
+     *    {@code java.lang.ProcessImpl@2a139a55}），无从解析。所以
+     *    "taskkill /T /PID" 在 Java 8 上永远走不到 —— 那种代码就是没跑过的死代码，
+     *    留着比删掉更危险。
+     * 2) 也确实不需要：WebView2 的浏览器进程挂在宿主进程的作业对象上，宿主一退
+     *    它们跟着退。实测（10 个看板窗口在跑）：弹出后 11 个 F1BoardWindow +
+     *    73 个 msedgewebview2，收回后回到 10 + 72，没有孤儿进程。
+     *
+     * 位置不会因为"强杀"而丢：F1BoardWindow 在每次移动/缩放**停下来之后**
+     * 就自己写了一次记录，不等关闭（见 BoardForm.OnSaveTick）。
      */
     public static boolean close(Process p) {
         if (p == null) {
             return false;
         }
-        try {
-            long pid = pidOf(p);
-            if (pid > 0) {
-                ProcessBuilder pb = new ProcessBuilder(
-                        "taskkill", "/F", "/T", "/PID", String.valueOf(pid));
-                pb.redirectErrorStream(true);
-                pb.redirectOutput(nullDevice());
-                pb.redirectError(nullDevice());
-                pb.start();
-            }
-        } catch (IOException e) {
-            // taskkill 不可用就退回普通 destroy
-        }
         p.destroy();
         return true;
-    }
-
-    /** Java 8 没有 Process.pid()（那是 9+），只能反射拿。拿不到返回 -1。 */
-    private static long pidOf(Process p) {
-        try {
-            java.lang.reflect.Method m = Process.class.getMethod("pid");
-            Object v = m.invoke(p);
-            return v instanceof Long ? ((Long) v).longValue() : -1L;
-        } catch (Exception e) {
-            return -1L;
-        }
     }
 
     public static boolean isAlive(Process p) {
