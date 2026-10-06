@@ -20,7 +20,7 @@ import com.haf1.racecontrol.ReplayClient;
  */
 public final class DesktopMain {
 
-    public static final String VERSION = "0.1.0";
+    public static final String VERSION = "0.1.1";
     public static final int DEFAULT_PORT = 8720;
 
     private DesktopMain() {
@@ -104,8 +104,28 @@ public final class DesktopMain {
                 System.out.println("             " + Firewall.manualCommand(port));
             }
         } else {
-            System.out.println("  防火墙   : 未处理（加 --firewall 自动加规则；"
-                    + "手机连不上多半是这里）");
+            // ★ 不加 --firewall 也要把话说完整。
+            //   只说"加 --firewall"是不够的：受管控的机器加不了、不想点 UAC 的人
+            //   也需要一条能直接粘贴的命令，不然用户只能自己去翻文档。
+            boolean covered = Firewall.ruleCoversPort(port);
+            System.out.println("  防火墙   : " + (covered
+                    ? "已有规则放行 TCP " + port + "，局域网应该能连"
+                    : "未放行 TCP " + port + "（本机不受影响，但手机连不上）"));
+            if (!covered) {
+                System.out.println("             自动加：加 --firewall 参数（会弹一次 UAC）");
+                System.out.println("             手动加：管理员 PowerShell 里跑下面这行");
+                System.out.println("             " + Firewall.manualCommand(port));
+            }
+        }
+
+        // 只诊断、不改动：不弹 UAC 也能看清到底卡在哪
+        if (o.firewallCheck) {
+            System.out.println("  防火墙检查: 规则名 " + Firewall.RULE_NAME
+                    + (Firewall.ruleExists() ? " 存在" : " 不存在"));
+            System.out.println("             端口 " + port + " "
+                    + (Firewall.ruleCoversPort(port) ? "已被规则覆盖" : "未被覆盖"));
+            System.out.println("             本机监听 "
+                    + (Firewall.portListening(port) ? "正常" : "★ 没在监听"));
         }
 
         // 数据线程。★ 非守护线程：主线程靠它活着，进程不会提前退出。
@@ -239,6 +259,7 @@ public final class DesktopMain {
         System.out.println("  --all-boards       打开全部 8 个看板");
         System.out.println("  --list-boards      列出看板 id 就退出");
         System.out.println("  --firewall         自动加 Windows 防火墙入站规则（会弹一次 UAC）");
+        System.out.println("  --firewall-check   只检查防火墙状态和端口监听，不做任何改动、不提权");
         System.out.println("  --replay FILE      放 .rclog 回放文件（不连网，用来演练界面）");
         System.out.println("  --speed N          回放倍速（默认 60）");
         System.out.println("  --main-size WxH    主窗口尺寸（默认 1600x900）");
@@ -257,6 +278,7 @@ public final class DesktopMain {
         boolean noWindow;
         final List<String> boards = new ArrayList<String>();
         boolean firewall;
+        boolean firewallCheck;
         String replay;
         String replayLabel = "";
         int speed = 60;
@@ -296,6 +318,9 @@ public final class DesktopMain {
                     o.listBoards = true;
                 } else if ("--firewall".equals(s)) {
                     o.firewall = true;
+                    o.firewallCheck = true;   // 加规则时顺便把检查也报出来
+                } else if ("--firewall-check".equals(s)) {
+                    o.firewallCheck = true;
                 } else if ("--replay".equals(s)) {
                     o.replay = next(a, ++i, s);
                 } else if ("--speed".equals(s)) {

@@ -100,6 +100,29 @@ public final class Firewall {
     }
 
     /**
+     * 服务器是不是真的在本机这个端口上听着。
+     *
+     * 用来把"手机连不上"的两种情况分开：**没在监听**（服务器/端口的问题）
+     * 还是**防火墙没放行**（规则的问题）。这两种原因的修法完全不同，
+     * 只报一句"连不上"等于没说。
+     */
+    public static boolean portListening(int port) {
+        java.net.Socket s = new java.net.Socket();
+        try {
+            s.connect(new java.net.InetSocketAddress("127.0.0.1", port), 1500);
+            return true;
+        } catch (IOException e) {
+            return false;
+        } finally {
+            try {
+                s.close();
+            } catch (IOException ignored) {
+                // 关不掉无所谓，进程退出时系统会回收
+            }
+        }
+    }
+
+    /**
      * 加一条入站规则，放行 TCP {@code port}（仅专用/域网络，不含公用网络 ——
      * 在咖啡馆里也没必要把看板暴露出去）。
      *
