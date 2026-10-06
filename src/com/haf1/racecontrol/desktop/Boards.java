@@ -84,11 +84,35 @@ public final class Boards {
     // ------------------------------------------------------------------
 
     /**
+     * 打开结果。
+     *
+     * {@code process} 可能是 null（比如让浏览器自己开新标签的情况），
+     * 所以调用方不能假定一定有句柄。
+     */
+    public static final class Opened {
+        public static final String NATIVE = "native";
+        public static final String BROWSER = "browser";
+
+        public final String mode;
+        public final Process process;
+
+        Opened(String mode, Process process) {
+            this.mode = mode;
+            this.process = process;
+        }
+
+        /** 给用户看的说法（日志和启动信息里用）。 */
+        public String describe() {
+            return NATIVE.equals(mode) ? "原生窗口" : "Edge 兜底";
+        }
+    }
+
+    /**
      * 开一块看板。
      *
-     * @return 实际用的方式（"原生窗口" 或 "Edge 兜底"），调用方据此如实汇报
+     * @return 实际用的方式 + 进程句柄
      */
-    public static String open(String boardExe, String browser, String key,
+    public static Opened open(String boardExe, String browser, String key,
                               String title, String url,
                               int width, int height, int x, int y)
             throws IOException {
@@ -113,14 +137,78 @@ public final class Boards {
                 cmd.add("--y");
                 cmd.add(String.valueOf(y));
             }
-            spawn(cmd);
-            return "原生窗口";
+            return new Opened(Opened.NATIVE, spawn(cmd));
         }
         if (browser == null) {
             throw new IOException("既没有 " + BOARD_EXE + "，也没找到 Edge/Chrome");
         }
-        spawn(edgeCommand(browser, url, key, width, height, x, y));
-        return "Edge 兜底";
+        return new Opened(Opened.BROWSER,
+                spawn(edgeCommand(browser, url, key, width, height, x, y)));
+    }
+
+    /**
+     * 关掉一个由我们拉起的看板窗口。
+     *
+     * 用 taskkill /T 连子进程一起收：WebView2 自己会派生好几个进程，
+     * 只杀外层那个会留下孤儿进程，任务管理器里还能看到一堆。
+     *
+     * ★ 强制结束不会触发窗口的 FormClosing，所以窗口位置不是靠"关闭时保存"
+     *   才记住的 —— F1BoardWindow 在每次移动/缩放结束时就已经存过了。
+     */
+    public static boolean close(Process p) {
+        if (p == null) {
+            return false;
+        }
+        try {
+            long pid = pidOf(p);
+            if (pid > 0) {
+                ProcessBuilder pb = new ProcessBuilder(
+                        "taskkill", "/F", "/T", "/PID", String.valueOf(pid));
+                pb.redirectErrorStream(true);
+                pb.redirectOutput(nullDevice());
+                pb.redirectError(nullDevice());
+                pb.start();
+            }
+        } catch (IOException e) {
+            // taskkill 不可用就退回普通 destroy
+        }
+        p.destroy();
+        return true;
+    }
+
+    /** Java 8 没有 Process.pid()（那是 9+），只能反射拿。拿不到返回 -1。 */
+    private static long pidOf(Process p) {
+        try {
+            java.lang.reflect.Method m = Process.class.getMethod("pid");
+            Object v = m.invoke(p);
+            return v instanceof Long ? ((Long) v).longValue() : -1L;
+        } catch (Exception e) {
+            return -1L;
+        }
+    }
+
+    public static boolean isAlive(Process p) {
+        if (p == null) {
+            return false;
+        }
+        try {
+            p.exitValue();
+            return false;
+        } catch (IllegalThreadStateException stillRunning) {
+            return true;
+        }
+    }
+
+    private static Process spawn(List<String> cmd) throws IOException {
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        // 不继承我们的输出流，否则父进程收 Ctrl+C 时会把子进程一起带走。
+        // ★ 不能用 ProcessBuilder.Redirect.DISCARD —— 那是 Java 9 才有的，
+        //   本项目要能在 Java 8 上跑（安卓那套 JDK 就是 8）。
+        File nil = nullDevice();
+        pb.redirectOutput(nil);
+        pb.redirectError(nil);
+        return pb.start();
     }
 
     /** 兜底方案：Edge/Chrome 的无地址栏窗口。 */
@@ -144,18 +232,6 @@ public final class Boards {
             cmd.add("--window-position=" + x + "," + y);
         }
         return cmd;
-    }
-
-    private static void spawn(List<String> cmd) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.redirectErrorStream(true);
-        // 不继承我们的输出流，否则父进程收 Ctrl+C 时会把子进程一起带走。
-        // ★ 不能用 ProcessBuilder.Redirect.DISCARD —— 那是 Java 9 才有的，
-        //   本项目要能在 Java 8 上跑（安卓那套 JDK 就是 8）。
-        File nil = nullDevice();
-        pb.redirectOutput(nil);
-        pb.redirectError(nil);
-        pb.start();
     }
 
     /** Windows 的空设备是 NUL，其它平台是 /dev/null。 */

@@ -35,6 +35,13 @@
   var lastPush = 0;
   var errNote = '';
 
+  // 哪些看板已经拉成了独立小窗。★ 以服务器为准，前端不自己记账：
+  // 用户可能直接用窗口的 X 关掉，前端根本收不到那个事件。
+  var popped = {};
+
+  // 圆环量不到尺寸时允许补几次重绘（见 renderRing）。
+  var refitLeft = 3;
+
   // `?once=1` —— 静态快照模式：只拉一次 /api/state 画出来，然后**不挂 SSE**。
   // 两个用处：① 无头浏览器截图/DOM 校验时不会因为挂着长连接而卡住
   //         ② 只想看一眼当前状态、不想维持推流（比如手机省电）也可以用
@@ -101,6 +108,99 @@
   }
 
   // ---------------------------------------------------------------
+  // 弹出 / 收回独立小窗
+  // ---------------------------------------------------------------
+
+  /** 现在渲染的是主界面（而不是某个独立看板页）。 */
+  function inMain() { return !!document.getElementById('main'); }
+
+  /**
+   * 问服务器：每块看板现在弹出来了没有。
+   *
+   * 为什么要问：用户可以直接用窗口的 X 关掉小窗，前端收不到通知。
+   * 所以按钮上的"已弹出"不能靠前端自己记，只能问出来。
+   */
+  function refreshPopped() {
+    fetch('/api/boards', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var next = {};
+        (d.boards || []).forEach(function (b) { if (b.popped) { next[b.id] = true; } });
+        if (JSON.stringify(next) !== JSON.stringify(popped)) {
+          popped = next;
+          repaint();
+        }
+      })
+      .then(null, function () { /* 问不到就维持现状，别因此报错 */ });
+  }
+
+  /**
+   * 点一下 → 弹出 / 收回。
+   *
+   * 是"开原生窗口"还是"开新标签页"由**服务器**决定，前端不猜：
+   *   - 本机：服务器能开窗口，就开原生小窗
+   *   - 手机 / 局域网设备：服务器没法在手机上开窗口，返回 mode=tab，
+   *     这里再 window.open 一个新标签页
+   * 猜错的后果是"点了没反应"，那比多一次往返难受得多。
+   */
+  function popout(id) {
+    fetch('/api/popout/' + id, { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.mode === 'tab' && d.url) {
+          var w = window.open(d.url, '_blank');
+          if (!w) {
+            errNote = '浏览器拦住了弹出窗口，请允许后重试';
+            repaint();
+          }
+          return;
+        }
+        if (d && d.reason) { errNote = d.reason; }
+        popped[id] = !!(d && d.popped);
+        repaint();
+      })
+      .then(null, function (e) {
+        errNote = '弹出失败：' + ((e && e.message) || e);
+        repaint();
+      });
+  }
+
+  /** 标题栏右侧的"弹出 / 收回"按钮。 */
+  function popButton(id) {
+    var on = !!popped[id];
+    var b = el('button', 'p-pop' + (on ? ' on' : ''));
+    b.type = 'button';
+    b.textContent = on ? '收回' : '弹出';
+    b.title = on
+      ? '收回：关掉这块看板的独立窗口'
+      : '把这块看板拉成独立小窗（手机上是新标签页）';
+    b.addEventListener('click', function (ev) {
+      ev.stopPropagation();   // 免得标题栏再触发一次
+      popout(id);
+    });
+    return b;
+  }
+
+  /** 一条面板标题栏。带 data-board 且在主界面时，右侧就有弹出按钮。 */
+  function titleRow(text, id) {
+    var t = el('div', 'ptitle');
+    t.appendChild(el('span', 'ptitle-text', text));
+    if (id && inMain()) {
+      t.appendChild(popButton(id));
+      t.classList.add('p-click');
+      t.title = '点标题栏也能把这块看板拉成独立小窗';
+      t.addEventListener('click', function (ev) {
+        if (ev.target && ev.target.classList
+            && ev.target.classList.contains('p-pop')) {
+          return;   // 按钮自己处理
+        }
+        popout(id);
+      });
+    }
+    return t;
+  }
+
+  // ---------------------------------------------------------------
   // 各看板渲染
   // ---------------------------------------------------------------
 
@@ -151,20 +251,46 @@
     var st = state;
     var ring = (st && st.ring) || { count: 0, starts: [], sweep: 0 };
     var track = (st && st.track) || {};
-    var cv = el('canvas', 'ring');
-    var W = box.clientWidth || 320;
-    var H = box.clientHeight || 320;
+
+    // ★ 画布必须是正方形，而且尺寸要用 px 写死。
+    //
+    //   踩过的坑：原来是 cv.style.width/height = 100%，像素尺寸却取自
+    //   box.clientWidth/clientHeight。两者只要不等（盒子有 padding、或者首次
+    //   渲染时还没布局、clientWidth 取到 0 走了 320 的回退、又或者用户把窗口
+    //   拉大后没有重新测量），CSS 就会把画布**拉伸** —— 圆变成椭圆，
+    //   而且拉伸一定糊。
+    //   现在：短边 = 边长，画布 px 尺寸 == 像素尺寸/dpr，任何时候都不会被拉伸。
+    var avail = Math.min(box.clientWidth || 0, box.clientHeight || 0);
+    if (!avail) {
+      avail = 320;   // 还没布局就先按 320 画，下一次重绘会纠正过来
+      // 但如果这是 ?once=1 快照模式、或者容器还是隐藏的，就没有"下一次"了，
+      // 所以主动补一次重绘（有次数上限，避免量不到时无限刷帧）。
+      if (refitLeft > 0) {
+        refitLeft--;
+        if (window.requestAnimationFrame) {
+          window.requestAnimationFrame(function () { repaint(); });
+        } else {
+          setTimeout(function () { repaint(); }, 16);
+        }
+      }
+    } else {
+      refitLeft = 3;
+    }
+    var side = Math.max(80, Math.round(avail));
     var dpr = window.devicePixelRatio || 1;
-    cv.width = Math.max(1, Math.floor(W * dpr));
-    cv.height = Math.max(1, Math.floor(H * dpr));
-    cv.style.width = '100%';
-    cv.style.height = '100%';
+
+    var cv = el('canvas', 'ring');
+    cv.setAttribute('data-fit', box.clientWidth + 'x' + box.clientHeight);
+    cv.style.width = side + 'px';
+    cv.style.height = side + 'px';
+    cv.width = Math.max(1, Math.round(side * dpr));
+    cv.height = Math.max(1, Math.round(side * dpr));
     box.appendChild(cv);
 
     var g = cv.getContext('2d');
     g.scale(dpr, dpr);
-    var cx = W / 2, cy = H / 2;
-    var rOut = Math.min(W, H) * 0.42;
+    var cx = side / 2, cy = side / 2;
+    var rOut = side * 0.42;
     var rIn = rOut * 0.62;
 
     var n = ring.count || 0;
@@ -227,9 +353,9 @@
     g.fillText(ago(track.updatedAt), cx, cy + 12);
   }
 
+  /** 面板标题。看板页里没有 data-board，自然就不会出现弹出按钮。 */
   function panelTitle(box, text) {
-    var t = el('div', 'ptitle', text);
-    box.appendChild(t);
+    box.appendChild(titleRow(text, box.getAttribute('data-board')));
   }
 
   function renderTrack(box) {
@@ -483,9 +609,14 @@
 
     root.appendChild(head);
 
+    // 旗语栏也要能弹出去，所以套一层：标题栏在外、横条在内。
+    // （renderFlags 会 clear 自己的容器，标题不能和它共用同一个容器）
+    var flagsCol = el('div', 'm-flags-col');
+    flagsCol.appendChild(titleRow(TITLES.flags, 'flags'));
     var flags = el('div', 'm-flags');
     renderFlags(flags);
-    root.appendChild(flags);
+    flagsCol.appendChild(flags);
+    root.appendChild(flagsCol);
 
     // 最新一条通报做成横幅 —— 这是"刚刚发生了什么"最该被一眼看到的地方。
     // 和安卓一样：有中文用中文，没有就用英文原文。
@@ -503,10 +634,18 @@
 
     var body = el('div', 'm-body');
     var left = el('div', 'm-left');
-    var ringBox = el('div', 'm-ring');
-    renderRing(ringBox);
-    left.appendChild(ringBox);
+
+    // 圆环也一样：标题在外、正方形画布区在内。
+    // renderRing 量的是"画布区"的短边，所以标题不能放在被测量的那个盒子里，
+    // 否则量到的短边会少了标题那一行，圆会画得偏大。
+    var ringCol = el('div', 'm-ring');
+    ringCol.appendChild(titleRow(TITLES.ring, 'ring'));
+    var ringArea = el('div', 'ring-area');
+    ringCol.appendChild(ringArea);   // 画布区先入树，最后才画（见本函数末尾）
+    left.appendChild(ringCol);
+
     var msgBox = el('div', 'panel m-msgs');
+    msgBox.setAttribute('data-board', 'messages');
     renderMessages(msgBox);
     left.appendChild(msgBox);
     body.appendChild(left);
@@ -521,6 +660,12 @@
     }
     body.appendChild(grid);
     root.appendChild(body);
+
+    // ★ 圆环必须等挂进文档之后再画，而且必须在最后。
+    //   它是按"画布区的短边"定边长的 —— 盒子还不在文档里时 clientWidth/Height
+    //   都是 0，只能走 320 的回退值。那不只是圆不圆的问题：因为每次重绘都会
+    //   重建整棵树，这个 0 会被反复量到，圆环就"永远只有 320px"、周围一大片空。
+    renderRing(ringArea);
   }
 
   function renderBoard(root) {
@@ -538,8 +683,12 @@
     head.appendChild(el('span', 'b-sub', connected ? ago(lastPush) : (errNote || '未连接')));
     root.appendChild(head);
     var box = el('div', 'b-box b-' + id);
-    RENDER[id](box);
+    // ★ 先入树再渲染。
+    //   反过来的话盒子还没有布局，clientWidth/Height 都是 0 ——
+    //   圆环这类"按盒子算尺寸"的看板会永远按回退值画（320px），
+    //   而且 ?once=1 快照模式下没有后续重绘来纠正。
     root.appendChild(box);
+    RENDER[id](box);
   }
 
   // ---------------------------------------------------------------
@@ -601,6 +750,20 @@
     repaint();
   }, 1000);
 
+  // 每 3 秒问一次"哪些看板弹出来了"：用户可能直接用窗口的 X 关掉，
+  // 那样按钮上的"收回"要能自己变回"弹出"。
+  setInterval(function () {
+    if (!ONCE) { refreshPopped(); }
+  }, 3000);
+
+  // 窗口被拉大/拉小时立刻重画。不靠等下一次推送 —— 拖拽过程中
+  // 圆环会明显看到"被拉扁"，哪怕只有一秒也很难看。
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    if (resizeTimer) { clearTimeout(resizeTimer); }
+    resizeTimer = setTimeout(function () { resizeTimer = null; repaint(); }, 120);
+  });
+
   window.F1 = {
     connect: connect, RENDER: RENDER, TITLES: TITLES, argb: argb,
     renderMain: renderMain, renderBoard: renderBoard,
@@ -619,6 +782,9 @@
         errNote = '首屏快照没拉到，等推送……';
         repaint();
       })
-      .then(function () { if (!ONCE) { connect(); } });
+      .then(function () {
+        refreshPopped();   // 首屏就问清楚"哪些看板已经弹出来了"
+        if (!ONCE) { connect(); }
+      });
   });
 }());

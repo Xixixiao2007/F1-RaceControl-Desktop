@@ -20,7 +20,7 @@ import com.haf1.racecontrol.ReplayClient;
  */
 public final class DesktopMain {
 
-    public static final String VERSION = "0.1.1";
+    public static final String VERSION = "0.1.2";
     public static final int DEFAULT_PORT = 8720;
 
     private DesktopMain() {
@@ -70,7 +70,12 @@ public final class DesktopMain {
         core.attach(src);
 
         Path webDir = WebServer.findWebDir(o.web);
+        // 窗口程序必须在这里就定下来：Web 服务器要用它来实现
+        // 「在网页上点某块面板 → 弹出独立小窗」。
+        String boardExe = Boards.findBoardWindow(o.boardExe);
+        String browser = boardExe == null ? Boards.findBrowser() : null;
         WebServer srv = new WebServer(core, webDir, o.port);
+        srv.setWindowContext(boardExe, browser, o.boardWidth, o.boardHeight);
         srv.start();
         int port = srv.port();
 
@@ -137,8 +142,6 @@ public final class DesktopMain {
         }, "f1-feed");
         feed.start();
 
-        String boardExe = Boards.findBoardWindow(o.boardExe);
-        String browser = boardExe == null ? Boards.findBrowser() : null;
         boolean wantWindows = o.openMain || !o.boards.isEmpty();
         if (wantWindows) {
             if (boardExe != null) {
@@ -212,7 +215,8 @@ public final class DesktopMain {
                                      String title, String url,
                                      int w, int h, int x, int y) {
         try {
-            String how = Boards.open(boardExe, browser, key, title, url, w, h, x, y);
+            String how = Boards.open(boardExe, browser, key, title, url, w, h, x, y)
+                    .describe();
             return boardExe != null ? "" : "（" + how + "）";
         } catch (IOException e) {
             System.out.println("  ★ 开窗口失败：" + e.getMessage());

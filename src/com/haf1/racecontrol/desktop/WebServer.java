@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -65,6 +66,22 @@ public final class WebServer {
             Collections.newSetFromMap(new ConcurrentHashMap<OutputStream, Boolean>());
     private final long[] lastPushed = new long[]{-1L};
 
+    // ---- 「点面板弹出独立小窗」需要的上下文（由 DesktopMain 注入）
+    private String boardExe;
+    private String browser;
+    private int boardW = 620;
+    private int boardH = 420;
+
+    /**
+     * 已经弹出的看板：id → 窗口进程。
+     *
+     * ★ 必须留在服务器侧，不能只让前端记状态：窗口是用户直接用 X 关掉的，
+     *   前端根本收不到通知。所以"弹没弹出"永远以进程是否还活着为准
+     *   （见 {@link #isPopped}），前端的状态是问出来的，不是猜出来的。
+     */
+    private final Map<String, Process> popped =
+            new ConcurrentHashMap<String, Process>();
+
     private HttpServer server;
     private volatile boolean running;
     private int boundPort;
@@ -73,6 +90,30 @@ public final class WebServer {
         this.core = core;
         this.webDir = webDir;
         this.port = port;
+    }
+
+    /** 告诉服务器用哪个程序开窗口（这样才能响应网页上的"弹出"请求）。 */
+    public void setWindowContext(String boardExe, String browser, int w, int h) {
+        this.boardExe = boardExe;
+        this.browser = browser;
+        if (w > 0) {
+            this.boardW = w;
+        }
+        if (h > 0) {
+            this.boardH = h;
+        }
+    }
+
+    private boolean isPopped(String id) {
+        Process p = popped.get(id);
+        if (p == null) {
+            return false;
+        }
+        if (Boards.isAlive(p)) {
+            return true;
+        }
+        popped.remove(id);   // 进程没了（用户关掉了），顺手清掉
+        return false;
     }
 
     public int port() {
@@ -121,12 +162,88 @@ public final class WebServer {
                     Json.Obj o = new Json.Obj();
                     o.put("id", BOARDS[i][0]);
                     o.put("title", BOARDS[i][1]);
+                    o.put("popped", isPopped(BOARDS[i][0]));
                     a.raw(o.done());
                 }
                 Json.Obj o = new Json.Obj();
                 o.raw("boards", a.done());
                 o.put("port", boundPort);
+                o.put("canNative", boardExe != null);
                 sendJson(ex, 200, o.done());
+            }
+        });
+
+        /*
+         * 点一下面板 → 弹出 / 收回独立小窗。
+         *
+         * 这是"小窗应该能自由选择固定在看板上或独立分出来"的服务端一半：
+         *   - 请求来自本机（回环地址）→ 在这台电脑上开一个原生窗口
+         *   - 请求来自局域网设备（手机）→ 服务器没法在手机上开窗口，
+         *     如实告诉前端「你自己开新标签页」，由前端 window.open 完成
+         *
+         * ★ 只有回环地址能触发开窗口。否则局域网里任何一台设备都能让这台
+         *   电脑弹窗 —— 那是个能被滥用的洞，不是功能。
+         */
+        server.createContext("/api/popout", new HttpHandler() {
+            @Override
+            public void handle(HttpExchange ex) throws IOException {
+                String path = ex.getRequestURI().getPath();
+                String id = path.startsWith("/api/popout/")
+                        ? path.substring("/api/popout/".length()) : "";
+                if (!isBoard(id)) {
+                    error(ex, 404, "没有这个看板：" + id);
+                    return;
+                }
+                String title = boardTitle(id);
+                Json.Obj o = new Json.Obj();
+                o.put("id", id);
+                o.put("title", title);
+
+                if (isPopped(id)) {
+                    // 已经弹出 → 这次点击表示收回
+                    Boards.close(popped.remove(id));
+                    o.put("popped", false);
+                    o.put("closed", true);
+                    sendJson(ex, 200, o.done());
+                    return;
+                }
+
+                if (!fromThisMachine(ex)) {
+                    // 手机上的浏览器：开不了原生窗口，交给前端开新标签页
+                    o.put("popped", false);
+                    o.put("mode", "tab");
+                    o.put("url", "/board/" + id);
+                    sendJson(ex, 200, o.done());
+                    return;
+                }
+
+                if (boardExe == null && browser == null) {
+                    // 本机也没有可用的窗口程序 —— 退回让浏览器开新标签页，
+                    // 而不是假装弹了个窗口
+                    o.put("popped", false);
+                    o.put("mode", "tab");
+                    o.put("url", "/board/" + id);
+                    o.put("reason", "没有 " + Boards.BOARD_EXE
+                            + "，也没找到 Edge/Chrome");
+                    sendJson(ex, 200, o.done());
+                    return;
+                }
+
+                try {
+                    int[] pos = Boards.suggestedSlot(popped.size(), boardW, boardH);
+                    Boards.Opened op = Boards.open(boardExe, browser, id, title,
+                            "http://127.0.0.1:" + boundPort + "/board/" + id,
+                            boardW, boardH, pos[0], pos[1]);
+                    if (op.process != null) {
+                        popped.put(id, op.process);
+                    }
+                    o.put("popped", op.process != null);
+                    o.put("mode", op.mode);
+                    o.put("how", op.describe());
+                    sendJson(ex, 200, o.done());
+                } catch (IOException e) {
+                    error(ex, 500, "开窗口失败：" + e.getMessage());
+                }
             }
         });
         server.createContext("/api/health", new HttpHandler() {
@@ -401,5 +518,51 @@ public final class WebServer {
             out.add(BOARDS[i][0]);
         }
         return Arrays.asList(out.toArray(new String[0]));
+    }
+
+    /** 是不是一个存在的看板 id。 */
+    static boolean isBoard(String id) {
+        if (id == null) {
+            return false;
+        }
+        for (int i = 0; i < BOARDS.length; i++) {
+            if (BOARDS[i][0].equals(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 看板的显示名。认不出来就回显 id，不要吞掉。 */
+    static String boardTitle(String id) {
+        for (int i = 0; i < BOARDS.length; i++) {
+            if (BOARDS[i][0].equals(id)) {
+                return BOARDS[i][1];
+            }
+        }
+        return id;
+    }
+
+    /**
+     * 请求是不是来自这台电脑本身。
+     *
+     * 用来决定「点面板弹出小窗」是开原生窗口还是让浏览器开新标签页，
+     * 同时**也是一道安全边界**：只有本机才能让这台电脑弹窗，
+     * 否则局域网里任何人都能让你的电脑弹出窗口。
+     */
+    private static boolean fromThisMachine(HttpExchange ex) {
+        InetSocketAddress ra = ex.getRemoteAddress();
+        if (ra == null || ra.getAddress() == null) {
+            return false;
+        }
+        return ra.getAddress().isLoopbackAddress();
+    }
+
+    /** 出错也要返回 JSON —— 前端是按 JSON 解析的，回一段 HTML 会让它二次出错。 */
+    private static void error(HttpExchange ex, int code, String msg) throws IOException {
+        Json.Obj o = new Json.Obj();
+        o.put("ok", false);
+        o.put("error", msg);
+        sendJson(ex, code, o.done());
     }
 }

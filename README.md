@@ -75,7 +75,12 @@ python tools\build.py --run -- --replay ..\F1-RaceControl\tools\mock_data\bahrai
 | `session` | 环节 |
 | `messages` | 赛事通报 |
 
-拉出独立窗口：
+**在界面上随手弹**：每块面板标题栏右侧有「弹出 / 收回」按钮（点标题栏整条也行）。
+点「弹出」本机开独立小窗，再点「收回」关掉；直接用窗口的 X 关掉也可以，
+按钮会在 3 秒内自己变回「弹出」。手机上的同一个按钮是**开新标签页** ——
+服务器没法在手机上开窗口，所以这种请求由服务器按来源判断后返回 `mode:"tab"`。
+
+命令行也能直接拉：
 
 ```bat
 --board tyres,timing,ring        :: 只要这三块
@@ -85,6 +90,7 @@ python tools\build.py --run -- --replay ..\F1-RaceControl\tools\mock_data\bahrai
 
 窗口位置和大小**会被记住**（按看板 id 存在 `%LOCALAPPDATA%\F1-RaceControl-Desktop\windows\`），
 摆一次就够了。`F11` 全屏，`Esc` 退出全屏。
+（位置是在每次移动/缩放**结束时**存的，所以即使用网页上的「收回」强制关窗也不会丢。）
 
 ## 功能一致是怎么保证的
 
@@ -114,8 +120,11 @@ python tools\sync_shared.py --drift    :: 查上游安卓仓库有没有改动
 
 - **实时流只验证过"连得上"**：非比赛时段实测能连上官方流并收到数据
   （`listenerOpen=true`），但还没赶上真正的比赛时段跑完整场。
-- **防火墙自动加规则要弹 UAC**，所以没法在无人值守时验证；代码里对"用户点了否"是如实报错，
-  不假装成功。不加 `--firewall` 时会打印可直接粘贴的 `netsh` 命令作为替代。
+- **防火墙自动加规则**要弹一次 UAC。本机实测过：跑完 `--firewall` 后
+  `netsh advfirewall firewall show rule name=F1-RaceControl-Desktop` 里能看到
+  `Enabled: Yes` / `Direction: In` / `TCP` / `LocalPort: 8720` / `Action: Allow`。
+  代码对"用户点了否"是如实报错，不假装成功。不加 `--firewall` 时会打印
+  可直接粘贴的 `netsh` 命令作为替代。
 - **手机/iPhone 的实际接入没测过**：本机验证过绑的是 `0.0.0.0`（两块网卡的地址都能访问），
   但真机连接需要你拿手机试一次。先用 `--firewall-check` 确认防火墙和监听都正常。
 - **看板不是逐行移植安卓的绘制代码**：结构相同（同样的面板划分）、颜色和几何来自安卓，但不是像素级复刻。

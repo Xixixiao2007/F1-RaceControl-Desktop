@@ -32,6 +32,9 @@ html, body {
 }
 
 /* ---------- 顶部旗语栏 ---------- */
+/* 旗语栏外层：标题栏 + 横条。
+   不能共用同一容器 —— 横条渲染时会把容器 clear 掉，标题会被抹掉。 */
+.m-flags-col { flex: 0 0 auto; display: flex; flex-direction: column; }
 .m-flags { flex: 0 0 auto; padding: 6px 10px 0; }
 .flags {
   display: flex; height: 54px; border-radius: 6px; overflow: hidden;
@@ -57,8 +60,25 @@ html, body {
   flex: 0 0 32%; min-width: 220px; padding: 8px 4px 10px 12px;
   display: flex; flex-direction: column; gap: 8px; min-height: 0;
 }
-.m-ring { flex: 1 1 auto; min-height: 0; }
-.m-msgs { flex: 1 1 46%; min-height: 90px; }
+/* 圆环外层：标题栏 + 画布区 */
+.m-ring { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/*
+ * 画布区 —— 被 renderRing 测量的就是它。
+ * 所以标题栏必须在它外面，否则量到的短边会少掉标题那一行，
+ * 圆会画得偏大。画布按 px 画成正方形后在这里居中，任何情况下都不会被拉扁。
+ */
+.ring-area {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+/*
+ * 通报列表：**不参与放大**（flex-grow 0），只占固定的 38%。
+ * 之前写的是 flex:1 1 46% —— 那样它会和圆环平分剩余空间，
+ * 结果在 1600x900 下单是通报就吃掉 ~500px，圆环被压到 144px，
+ * 而这本来应该是最该一眼看到的东西。
+ */
+.m-msgs { flex: 0 1 38%; min-height: 90px; }
 .ring { display: block; }
 
 /* ---------- 通报横幅 ---------- */
@@ -103,7 +123,27 @@ html, body {
 .ptitle {
   font-size: 12px; font-weight: 700; color: #7d8590;
   text-transform: none; margin-bottom: 4px; letter-spacing: .4px;
+  display: flex; align-items: center; gap: 6px;
 }
+.ptitle-text { flex: 0 0 auto; }
+/* 有弹出按钮的标题栏整条可点（内容区不受影响，滚动和选文字都正常） */
+.ptitle.p-click { cursor: pointer; }
+.ptitle.p-click:hover .ptitle-text { color: #c9d1d9; }
+
+/*
+ * 「弹出 / 收回」按钮。
+ * margin-left:auto 把它推到标题栏右端，但**不是**把整条标题栏都做成按钮 ——
+ * 消息列表那些面板的内容区还要能滚动、能选文字。
+ */
+.p-pop {
+  margin-left: auto; flex: 0 0 auto;
+  font-family: inherit; font-size: 11px; font-weight: 600; line-height: 1;
+  padding: 3px 8px; border-radius: 4px; cursor: pointer;
+  border: 1px solid #30363d; background: #21262d; color: #c9d1d9;
+}
+.p-pop:hover { background: #30363d; border-color: #4b5563; color: #fff; }
+.p-pop.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.p-pop.on:hover { background: #388bfd; }
 .big { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
 .sub { font-size: 12px; color: #8b949e; }
 

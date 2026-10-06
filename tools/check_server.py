@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 """打一遍桌面版 Web 服务器的接口，确认全链路通了。"""
 import json
+import socket
 import sys
 import time
+import urllib.error
 import urllib.request
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -186,6 +188,52 @@ with OPENER.open(req, timeout=25) as r:
         if "event: state" in buf:
             got = buf.count("event: state")
 check("SSE 收到状态帧", got >= 1, "%d 帧 / %.1fs" % (got, time.time() - t0))
+
+print()
+print("== 5. 弹出/收回接口 ==")
+st, body = get("/api/boards")
+b = json.loads(body)
+check("/api/boards 带 popped 字段", all("popped" in x for x in b.get("boards", [])),
+      "%d 块" % len(b.get("boards", [])))
+check("/api/boards 带 canNative", "canNative" in b)
+
+
+def post(path):
+    req = urllib.request.Request(BASE + path, method="POST")
+    try:
+        with OPENER.open(req, timeout=20) as r:
+            return r.status, r.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8")
+
+
+st, body = post("/api/popout/nope")
+check("未知看板 → 404", st == 404, st)
+check("报错也是 JSON（不是 HTML）", '"error"' in body, body[:60])
+
+# ★ 安全不变量：非回环来源不许让这台电脑开窗口。
+#   只从本机走局域网地址请求一次就能验证 —— 服务器看到的来源就不是回环了。
+#   这条要是坏了，同网段任何人都能让你的电脑弹窗。
+try:
+    _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    _s.connect(("8.8.8.8", 80))      # 不发包，只为让系统选出出口网卡
+    LAN = _s.getsockname()[0]
+    _s.close()
+except Exception:
+    LAN = None
+if LAN:
+    try:
+        req = urllib.request.Request("http://%s:%d/api/popout/tyres" % (LAN, PORT),
+                                     method="POST")
+        with OPENER.open(req, timeout=20) as r:
+            d = json.loads(r.read().decode("utf-8"))
+        check("非回环请求不开窗口（安全不变量）",
+              d.get("mode") == "tab" and not d.get("popped"),
+              "%s → mode=%s" % (LAN, d.get("mode")))
+    except Exception as e:
+        check("非回环请求不开窗口（安全不变量）", False, repr(e))
+else:
+    print("  [--] 非回环检查跳过（枚举不到局域网地址）")
 
 print()
 print("全部通过 ✓" if ok else "★ 有失败项")
