@@ -27,6 +27,11 @@ F1 赛事控制消息的 **Windows 客户端**，功能和 [F1-RaceControl](http
 
 ## 快速开始
 
+**下载解压即用**（不需要编译）：[最新发布包](https://github.com/Xixixiao2007/F1-RaceControl-Desktop/releases/latest) —— 解压后双击 `启动.cmd`。
+只需要装过 Java；没有 .NET 运行时也能用，看板窗口会降级成 Edge 无地址栏窗口。
+
+从源码跑：
+
 ```bat
 python tools\build.py --native --run -- --open --all-boards
 ```

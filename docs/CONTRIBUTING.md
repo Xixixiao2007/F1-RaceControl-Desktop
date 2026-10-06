@@ -25,7 +25,15 @@ python tools\build.py --native        :: 顺便编原生窗口
 python tools\build.py --native --run -- --replay <某.rclog> --open
 python tools\build.py --clean
 python tools\build_native.py --publish  :: 自包含的原生窗口（免装 .NET）
+python tools\make_dist.py             :: 打免安装 zip（构建 + 打包 + 列文件 + 算 SHA256）
 ```
+
+`make_dist.py` 有一道清单核对：`F1BoardWindow.exe` / `.dll` / `.deps.json` /
+`.runtimeconfig.json` / WebView2 的两个 managed DLL /
+`runtimes/win-x64/native/WebView2Loader.dll` 缺任何一个都直接报错、不打包。
+**这道检查是有用的**：第一版手写清单就漏了 `WebView2Loader.dll`
+（它在 `runtimes/` 子目录下，不在根目录），而少它的后果是"窗口一闪就没"，
+打包脚本本身不会报错。
 
 产物：
 

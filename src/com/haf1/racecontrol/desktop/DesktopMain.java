@@ -1,4 +1,4 @@
-﻿package com.haf1.racecontrol.desktop;
+package com.haf1.racecontrol.desktop;
 
 import java.io.File;
 import java.io.FileInputStream;
