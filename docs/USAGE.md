@@ -60,7 +60,18 @@ F1-Race Control 桌面版 0.1.0
 python tools\build.py --run -- --board flags,ring,track,tyres,timing,weather,fastest,session
 ```
 
-默认按 3 列网格铺开（每块 620×420）。屏幕小的就少开几块，或者只开最关心的那两三块。
+默认按 3 列网格铺开（每块 620×420），起点在屏幕左上角。
+
+**窗口会不会互相压着？** 会，而且这在单屏 1080p 上无法避免：主界面
+1600×900 加上几块看板，面积本来就超过一屏。所以实际用法是二选一 ——
+
+- 只想看总览：只开主界面（`--open`）
+- 想让某几块面板一直显示：把那几块拉出来（`--board tyres,timing`），
+  主界面留在后面当底图，需要时点任务栏调出来
+
+先摆一次位置就好：**每个窗口的位置和大小都会按看板 id 记住**
+（存在 `%LOCALAPPDATA%\F1-RaceControl-Desktop\windows\`），下次打开回到原位。
+想重新排，删掉那个目录里的对应 json 即可。
 
 ## 手机上用（含 iPhone）
 
