@@ -295,6 +295,9 @@ table.kv td { padding: 2px 0; }
   font-size: 11px; color: #8b949e; padding: 0 2px 5px; overflow: hidden;
 }
 .m-phone-status .phone-status-text {
+  /* min-width:0 是必须的：flex 行里 nowrap 的子项默认 min-width:auto，
+     会拒绝收缩，把右边的按钮挤到屏幕外面去（iPhone SE 320 宽就会） */
+  min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .m-phone-status .spacer { flex: 1 1 auto; }

@@ -20,7 +20,7 @@ import com.haf1.racecontrol.ReplayClient;
  */
 public final class DesktopMain {
 
-    public static final String VERSION = "0.1.5";
+    public static final String VERSION = "0.1.6";
     public static final int DEFAULT_PORT = 8720;
 
     private DesktopMain() {
