@@ -46,6 +46,24 @@
   // 圆环量不到尺寸时允许补几次重绘（见 renderRing）。
   var refitLeft = 3;
 
+  // 手机横屏时右栏显示哪一屏（安卓默认是"赛道图"，也就是圆环）。
+  var mobilePanel = 'ring';
+  // 手机状态行上的一句临时提示（比如"全屏没成功"）—— 手机版没有头部，
+  // 消息只能挂在这一行上。几秒后自己消失。
+  var phoneNotice = '';
+
+  // 手机右栏那条窄框图标 —— 和安卓 RightPanelView 的 MODE_ICONS/MODE_NAMES 一一对应：
+  //   0 ◎ 赛道图(圆环)  1 ◍ 轮胎  2 ≡ 成绩  3 ☂ 天气  4 ⏱ 最快圈  5 ⓘ 环节
+  // 用单字符是为了不依赖任何字体资源（安卓那边也是这个理由）。
+  var PHONE_MODES = [
+    ['ring', '◎', '赛道图（圆环）'],
+    ['tyres', '◍', '轮胎 / 进站'],
+    ['timing', '≡', '成绩榜'],
+    ['weather', '☂', '天气'],
+    ['fastest', '⏱', '最快圈'],
+    ['session', 'ⓘ', '环节']
+  ];
+
   // `?once=1` —— 静态快照模式：只拉一次 /api/state 画出来，然后**不挂 SSE**。
   // 两个用处：① 无头浏览器截图/DOM 校验时不会因为挂着长连接而卡住
   //         ② 只想看一眼当前状态、不想维持推流（比如手机省电）也可以用
@@ -619,11 +637,197 @@
   };
 
   // ---------------------------------------------------------------
+  // 手机版主界面（和安卓同款：只显示该显的）
+  // ---------------------------------------------------------------
+
+  /**
+   * 这是不是手机屏；是的话该按哪种排布。
+   *
+   * 判据用**短边**：手机不管横竖，短边都在 400 上下；平板和桌面窗口的短边
+   * 明显更大。只看宽度会在横屏时把手机错判成桌面（844 宽的横屏手机）。
+   *
+   * 返回 'portrait' / 'landscape' / null（null = 按桌面版渲染）。
+   */
+  function phoneMode() {
+    var w = window.innerWidth, h = window.innerHeight;
+    if (Math.min(w, h) > 560) { return null; }
+    return h >= w ? 'portrait' : 'landscape';
+  }
+
+  /** 手机横屏右栏那条窄框图标；点谁切谁（对应安卓的 buildIconStrip）。 */
+  function phoneIconStrip() {
+    var strip = el('div', 'm-strip');
+    for (var i = 0; i < PHONE_MODES.length; i++) {
+      var b = el('button', 'strip-btn'
+        + (PHONE_MODES[i][0] === mobilePanel ? ' on' : ''));
+      b.type = 'button';
+      b.textContent = PHONE_MODES[i][1];
+      b.title = PHONE_MODES[i][2];
+      b.setAttribute('data-mode', PHONE_MODES[i][0]);
+      // ★ 用闭包把 id 定住。循环变量直接进回调的话，点哪个都是最后一屏。
+      b.addEventListener('click', (function (id) {
+        return function () {
+          mobilePanel = id;
+          repaint();
+        };
+      })(PHONE_MODES[i][0]));
+      strip.appendChild(b);
+    }
+    return strip;
+  }
+
+  /**
+   * 全屏按钮（手机用）。
+   *
+   * 手机浏览器地址栏吃掉的高度很值这一下（安卓那边没这个按钮，但网页版是在
+   * 浏览器里跑，比不了）。
+   *
+   * 按钮**总是**摆出来 —— 但要是这台浏览器压根不支持对任意元素全屏
+   * （iOS 的 Safari 只给 video 元素全屏），点下去会如实说一句"该怎么办"
+   * （iPhone 那条路是「分享 → 添加到主屏幕」），而不是装作没这回事。
+   */
+  function fullscreenButton() {
+    var doc = document.documentElement;
+    var req = doc.requestFullscreen || doc.webkitRequestFullscreen;
+    var exit = document.exitFullscreen || document.webkitExitFullscreen;
+    var on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    var b = el('button', 'phone-btn phone-btn-fs' + (on ? ' on' : ''),
+      on ? '退出全屏' : '全屏');
+    b.type = 'button';
+    b.title = on ? '退出全屏' : '全屏（藏起浏览器的地址栏）';
+    b.addEventListener('click', function () {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (exit) { exit.call(document); }
+        return;
+      }
+      if (!req) {
+        notice('这台浏览器不支持网页全屏；iPhone 可用「分享 → 添加到主屏幕」');
+        return;
+      }
+      try {
+        var r = req.call(doc);
+        // 有的浏览器返回 Promise：被拒（比如没算作"用户手势"）时如实说一句
+        if (r && r.catch) {
+          r.catch(function (e) { notice('全屏没成功：' + ((e && e.message) || e)); });
+        }
+      } catch (e) {
+        notice('全屏没成功：' + e.message);
+      }
+    });
+    return b;
+  }
+
+  /** 在手机状态行上说一句，8 秒后自己消失。 */
+  function notice(msg) {
+    phoneNotice = msg;
+    repaint();
+    setTimeout(function () {
+      if (phoneNotice === msg) {
+        phoneNotice = '';
+        repaint();
+      }
+    }, 8000);
+  }
+
+  /**
+   * 手机上那一行薄状态行。
+   *
+   * 安卓的状态行是塞在左栏顶部的（buildStatusRow 加在 left 里），不在旗语栏里 ——
+   * 所以手机版也放这儿，而不是像桌面版那样占一整条头部。手机屏就那么点高。
+   * 右端两个按钮：单独打开（当前这一屏开成新标签页）、全屏。
+   */
+  function phoneStatusRow() {
+    var row = el('div', 'm-phone-status');
+    row.appendChild(el('span', 'dot' + (connected ? ' ok' : ' bad')));
+    row.appendChild(el('span', 'phone-status-text',
+      phoneNotice || (connected ? ('已连接 · ' + ago(lastPush))
+                                : (errNote || '未连接'))));
+    row.appendChild(el('span', 'spacer'));
+
+    var bid = phoneMode() === 'landscape' ? mobilePanel : 'messages';
+    var pop = el('button', 'phone-btn', '单独打开');
+    pop.type = 'button';
+    pop.title = '在新标签页里单独打开「' + (TITLES[bid] || bid) + '」';
+    pop.addEventListener('click', function () { popout(bid); });
+    row.appendChild(pop);
+
+    var fs = fullscreenButton();
+    if (fs) {
+      row.appendChild(fs);
+    }
+    return row;
+  }
+
+  /**
+   * 手机版主界面 —— 只显示和安卓一致的内容，**比例也照安卓来**。
+   *
+   * 安卓的排布（F1MainActivity.buildLayout / buildBody）：
+   *   旗语栏   固定 42dp 高
+   *   竖屏     旗语栏 + [ 状态行 + 消息列表 ]
+   *   横屏     旗语栏 + [ 状态行 + 消息列表 | 右侧面板 | 窄框图标条(38dp) ]
+   *   左右两栏各 weight=1f（各一半），窄条固定 38dp；面板一次只显示一屏
+   *
+   * ★ 安卓**没有**顶部大标题行 —— 状态行是塞在左栏里的。手机屏就这么点高，
+   *   照抄桌面版的头部 + 每块面板的标题行纯属浪费：我第一版就是这么做的，
+   *   横屏 390px 里光旗语栏 86px、头部 80px，比例明显不对（用户一眼看出来）。
+   */
+  function renderPhoneMain(root, mode) {
+    var wrap = el('div', 'phone phone-' + mode);
+
+    // 旗语栏：只要那一条（42px，见 CSS），标题行和摘要行都不给
+    var flags = el('div', 'm-flags');
+    renderFlags(flags);
+    wrap.appendChild(flags);
+
+    var body = el('div', 'm-phone-body');
+
+    var left = el('div', 'm-phone-left');
+    left.appendChild(phoneStatusRow());
+    var msgs = el('div', 'panel m-msgs m-phone-msgs');
+    msgs.setAttribute('data-board', 'messages');
+    left.appendChild(msgs);
+    body.appendChild(left);
+
+    var area = null;
+    if (mode === 'landscape') {
+      // 面板和左栏是**兄弟**（各 weight 1），窄条也是兄弟（固定 38px）——
+      // 和安卓一样。要是把面板和窄条包在一起，左栏就比面板宽了。
+      if (mobilePanel === 'ring') {
+        // 圆环：标题在外、被测量的画布区在内（这个坑踩过一次）
+        area = el('div', 'ring-area');
+      } else {
+        area = el('div', 'panel m-phone-box');
+        area.setAttribute('data-board', mobilePanel);
+      }
+      body.appendChild(area);
+      body.appendChild(phoneIconStrip());
+    }
+    wrap.appendChild(body);
+    root.appendChild(wrap);
+
+    // ★ 先入树再渲染（圆环要量盒子尺寸），和别处一致
+    renderMessages(msgs);
+    if (area) {
+      RENDER[mobilePanel](area);
+    }
+  }
+
+  // ---------------------------------------------------------------
   // 主界面：顶部旗语栏 + 左侧圆环 + 右侧 6 屏
   // ---------------------------------------------------------------
 
   function renderMain(root) {
     clear(root);
+
+    // 手机：只显示和安卓同款的内容，**而且比例也照安卓**。
+    // ★ 必须一开始就分叉：第一版我把手机版"追加"在桌面排布**后面**，
+    //   于是手机上出现了两个旗语栏、上面还压着 80px 的头部（头部 + 旗语栏
+    //   吃掉 390px 里的 43%）。用 CDP 量高度才看出来 —— 眼睛看截图只觉得"有点挤"。
+    var phone = phoneMode();
+    if (phone) {
+      renderPhoneMain(root, phone);
+      return;
+    }
 
     var head = el('div', 'm-head');
     var brand = el('div', 'm-brand');
@@ -676,6 +880,9 @@
       }
       root.appendChild(banner);
     }
+
+    // 手机上只显示安卓同款的内容（竖屏只看通报、横屏两栏），不走下面那套
+    // "圆环 + 右侧 6 块全铺"的桌面排布。分叉在函数开头（见上）。
 
     var body = el('div', 'm-body');
     var left = el('div', 'm-left');
@@ -813,6 +1020,16 @@
     if (resizeTimer) { clearTimeout(resizeTimer); }
     resizeTimer = setTimeout(function () { resizeTimer = null; repaint(); }, 120);
   });
+
+  // 进出全屏也要重画：不仅是按钮上的字要换，圆环也得按新高度重新量一次。
+  // （转屏会触发 resize，但全屏不一定 —— 两者都挂上。）
+  var fsEvents = ['fullscreenchange', 'webkitfullscreenchange'];
+  for (var fi = 0; fi < fsEvents.length; fi++) {
+    document.addEventListener(fsEvents[fi], function () {
+      if (resizeTimer) { clearTimeout(resizeTimer); }
+      resizeTimer = setTimeout(function () { resizeTimer = null; repaint(); }, 120);
+    });
+  }
 
   window.F1 = {
     connect: connect, RENDER: RENDER, TITLES: TITLES, argb: argb,

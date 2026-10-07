@@ -85,6 +85,8 @@ public final class WebServer {
     private HttpServer server;
     private volatile boolean running;
     private int boundPort;
+    /** 「第一个页面来自哪」只记一次（见 /api/boards）。 */
+    private volatile boolean loggedCaller;
 
     public WebServer(AppCore core, Path webDir, int port) {
         this.core = core;
@@ -189,7 +191,16 @@ public final class WebServer {
                 Json.Obj o = new Json.Obj();
                 o.raw("boards", a.done());
                 o.put("port", boundPort);
-                o.put("canNative", boardExe != null);
+                o.put("canNative", wantsNative(ex));
+                // 只记第一次：这条日志回答的是"这个页面到底跑在浏览器里，还是跑在
+                // 我们自己的窗口里"。用户报"点弹出没反应/弹出形态不对"时，第一件
+                // 事就是看这里 —— 光看来源地址（都是回环）分不出来。
+                if (!loggedCaller) {
+                    loggedCaller = true;
+                    System.out.println("[web] 第一个页面连接来自：" + (fromThisMachine(ex)
+                            ? (fromShell(ex) ? "本机 · 我们的窗口" : "本机 · 浏览器")
+                            : "局域网设备"));
+                }
                 sendJson(ex, 200, o.done());
             }
         });
@@ -197,13 +208,20 @@ public final class WebServer {
         /*
          * 点一下面板 → 弹出 / 收回独立小窗。
          *
-         * 这是"小窗应该能自由选择固定在看板上或独立分出来"的服务端一半：
-         *   - 请求来自本机（回环地址）→ 在这台电脑上开一个原生窗口
-         *   - 请求来自局域网设备（手机）→ 服务器没法在手机上开窗口，
-         *     如实告诉前端「你自己开新标签页」，由前端 window.open 完成
+         * 这是"小窗应该能自由选择固定在看板上或独立分出来"的服务端一半。
+         * 判两件事，别混在一起：
          *
-         * ★ 只有回环地址能触发开窗口。否则局域网里任何一台设备都能让这台
-         *   电脑弹窗 —— 那是个能被滥用的洞，不是功能。
+         *   1) **能不能**开原生窗口 —— 只有回环地址可以。否则局域网里任何一台
+         *      设备都能让这台电脑弹窗，那是个能被滥用的洞，不是功能。
+         *   2) **想不想要**原生窗口 —— 只有跑在我们自己窗口里的页面才要。
+         *      同样是回环地址，本机浏览器里点「弹出」应该是开一个**网页标签页**
+         *      （用户明确要求的："网页版弹出窗口也应该是网页"），而在我们的
+         *      原生窗口里点才是再开一个原生小窗（像微信那样）。
+         *      两条都是回环，只能靠 UA 上的标记（见 Boards/native 的 ShellMarker）
+         *      区分。
+         *
+         * 两者都满足才开原生窗口；否则如实返回 mode=tab，由前端 window.open 兜。
+         * 猜错的后果是"点了没反应"或"开错形态"，两种都很难受。
          */
         server.createContext("/api/popout", new HttpHandler() {
             @Override
@@ -215,13 +233,19 @@ public final class WebServer {
                 // 「收回全部」：一次把所有弹出去的小窗关掉。
                 // 必须放在 isBoard 判断之前 —— "all" 不是一个看板 id。
                 if ("all".equals(id)) {
-                    if (!fromThisMachine(ex)) {
-                        // 手机上的浏览器：我们的窗口不在那台设备上，关了也没意义。
-                        // 如实说，而不是假装成功。
+                    // 和"弹出"同一条规矩：只有跑在我们自己窗口里、且在这台机器上
+                    // 的页面才能动这些窗口。
+                    // 手机上我们的窗口不在那台设备上；本机浏览器里也不该有这条路
+                    // （网页版点「弹出」开的是标签页，那些标签页服务器也关不掉，
+                    //   所以浏览器里根本没有"收回全部"这个按钮）。
+                    // 两种都如实说，不假装成功。
+                    if (!wantsNative(ex)) {
                         Json.Obj o = new Json.Obj();
                         o.put("ok", false);
                         o.put("mode", "tab");
-                        o.put("error", "只有本机能收回窗口");
+                        o.put("error", fromThisMachine(ex)
+                                ? "网页版里收不了本机窗口，请在桌面客户端里点"
+                                : "只有本机能收回窗口");
                         sendJson(ex, 200, o.done());
                         return;
                     }
@@ -253,10 +277,21 @@ public final class WebServer {
                 }
 
                 if (!fromThisMachine(ex)) {
-                    // 手机上的浏览器：开不了原生窗口，交给前端开新标签页
+                    // 手机 / 局域网设备：开不了原生窗口，交给前端开新标签页
                     o.put("popped", false);
                     o.put("mode", "tab");
                     o.put("url", "/board/" + id);
+                    sendJson(ex, 200, o.done());
+                    return;
+                }
+
+                if (!fromShell(ex)) {
+                    // 本机、但是在**浏览器**里看的 —— 那就是"网页版"，
+                    // 弹出也应该是网页。给个新标签页地址，不开原生窗口。
+                    o.put("popped", false);
+                    o.put("mode", "tab");
+                    o.put("url", "/board/" + id);
+                    o.put("reason", "浏览器里用网页版：新标签页打开");
                     sendJson(ex, 200, o.done());
                     return;
                 }
@@ -606,6 +641,34 @@ public final class WebServer {
         }
         return ra.getAddress().isLoopbackAddress();
     }
+
+    /**
+     * 这个页面是不是跑在**我们自己的原生窗口**里（而不是浏览器里）。
+     *
+     * 靠 WebView2 在 UA 尾巴上盖的标记判断（native/BoardWindow/Program.cs 的
+     * ShellMarker，改一处必须改两处）。
+     *
+     * 为什么需要这个：来源地址分不出"我们的窗口"和"本机浏览器" —— 两者都是
+     * 回环地址。而这两处用户的期望正好相反：我们的窗口里点「弹出」要再开一个
+     * 原生小窗（像微信那样），浏览器里点「弹出」要开一个**网页标签页**
+     * （用户明确要求："网页版弹出窗口也应该是网页"）。
+     *
+     * ★ 它只回答"想不想要原生窗口"，不回答"能不能"。能不能仍然只看来源地址
+     *   （fromThisMachine）—— 那是安全边界，不能靠一个客户端可以随便改的
+     *   UA 字符串来决定。
+     */
+    private static boolean fromShell(HttpExchange ex) {
+        String ua = ex.getRequestHeaders().getFirst("User-Agent");
+        return ua != null && ua.indexOf(SHELL_MARKER) >= 0;
+    }
+
+    /** 能不能 + 想不想要，两个都满足才是"该开原生窗口"。 */
+    private static boolean wantsNative(HttpExchange ex) {
+        return fromThisMachine(ex) && fromShell(ex);
+    }
+
+    /** 和 native/BoardWindow/Program.cs 的 ShellMarker 必须一模一样。 */
+    static final String SHELL_MARKER = "F1RaceControlShell/1";
 
     /** 出错也要返回 JSON —— 前端是按 JSON 解析的，回一段 HTML 会让它二次出错。 */
     private static void error(HttpExchange ex, int code, String msg) throws IOException {

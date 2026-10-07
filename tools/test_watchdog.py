@@ -44,6 +44,9 @@ if not os.path.isfile(JAVA):
 u = ctypes.windll.user32
 WM_CLOSE = 0x0010
 ok = True
+# 和 native/BoardWindow/Program.cs 的 ShellMarker、Java 的 WebServer.SHELL_MARKER
+# 三处必须一致。
+SHELL_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) F1RaceControlShell/1"
 
 
 def find_jar(app):
@@ -63,8 +66,17 @@ def check(label, cond, extra=""):
 
 
 def http(path, method="GET", timeout=8):
+    """带上原生窗口的 UA 标记。
+
+    ★ 从 0.1.5 起服务器分两种"弹出"：跑在我们自己窗口里的页面 → 开原生小窗；
+      浏览器里的页面（哪怕在本机）→ 开网页标签页。这个测试要的是原生小窗，
+      所以必须带标记 —— 不带的话服务器会（正确地）返回 mode=tab，一个窗口
+      都不会有，测试就会假装失败。这个 UA 和 native/BoardWindow 里的那个常量
+      必须一致（Java 侧见 WebServer.SHELL_MARKER）。
+    """
     o = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    r = urllib.request.Request("http://127.0.0.1:%s%s" % (PORT, path), method=method)
+    r = urllib.request.Request("http://127.0.0.1:%s%s" % (PORT, path),
+                               headers={"User-Agent": SHELL_UA}, method=method)
     with o.open(r, timeout=timeout) as f:
         return json.loads(f.read().decode())
 

@@ -222,7 +222,12 @@ table.kv td { padding: 2px 0; }
 .top3 { font-size: 12px; }
 .top3row { padding: 1px 0; }
 
-/* ---------- 手机 / 窄屏：竖排 ---------- */
+/* ---------- 窄桌面窗口：竖排 ---------- */
+/*
+ * 这条只管"桌面窗口被拉窄"，不是手机版。手机版走下面那套 phone-*。
+ * （手机上短边 <= 560 时 app.js 根本不会生成 .m-body/.m-grid，所以这里
+ *   的规则在手机版上碰不到东西。）
+ */
 @media (max-width: 820px) {
   .m-body { flex-direction: column; overflow: auto; }
   .m-left { flex: 0 0 auto; min-height: 0; padding: 8px 12px 0; }
@@ -236,3 +241,79 @@ table.kv td { padding: 2px 0; }
   .m-head { flex-wrap: wrap; gap: 6px; }
   .m-title { font-size: 15px; }
 }
+
+/* ---------- 手机版：和安卓同款（只显示该显的，比例也照安卓） ---------- */
+/*
+ * 排布由 app.js 的 phoneMode() 决定：竖屏 .phone-portrait、横屏 .phone-land。
+ * "是不是手机"和短边阈值只有那一处判断，这里只负责长什么样 —— 同一件事
+ * 写在两处迟早会不一致。
+ *
+ * 比例照着安卓 F1MainActivity 来（这是"同款"的唯一依据）：
+ *   旗语栏固定 dp(42)
+ *   左右两栏各 weight=1f（各一半），窄框图标条固定 dp(38)
+ */
+.phone { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+
+/* 旗语栏：42px，和安卓的 dp(42) 对齐。
+   第一版按桌面版那套渲染成了 86px（标题行 + 摘要行 + 大字号），
+   横屏 390px 里占了 22%，比例明显不对。安卓的旗语栏里没有摘要文字
+   （赛道状态在状态行里），所以这里把 .flag-summary 藏掉。 */
+.phone .m-flags {
+  flex: 0 0 auto; height: 42px; padding: 0 8px; box-sizing: border-box;
+  overflow: hidden;
+}
+.phone .m-flags .flags { height: 100%; }
+.phone .flag-summary { display: none; }
+.phone .flag-kind { font-size: 11px; line-height: 1.15; }
+.phone .flag-sectors { font-size: 9px; line-height: 1.15; }
+
+/* 安卓没有顶部大标题行，状态行也塞在左栏里 —— 手机屏没那么多高度可浪费 */
+.phone .ptitle { display: none; }
+
+.phone .panel { min-height: 0; }
+
+.m-phone-body {
+  flex: 1 1 auto; display: flex; min-height: 0;
+  gap: 6px; padding: 4px 8px 8px; box-sizing: border-box;
+}
+.phone-portrait .m-phone-body { flex-direction: column; }
+/* 左栏：状态行 + 通报列表 */
+.m-phone-left {
+  flex: 1 1 0; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+}
+.m-phone-msgs { flex: 1 1 0; min-height: 0; max-height: none; }
+
+/* 横屏：面板 + 窄条都是左栏的**兄弟**（各占一半 / 固定 38px），和安卓一致 */
+.m-phone-body > .m-phone-box,
+.m-phone-body > .ring-area { flex: 1 1 0; min-width: 0; min-height: 0; }
+.m-phone-body > .m-phone-box { overflow: auto; }
+
+/* 状态行：一行薄的，右端放「单独打开」和「全屏」 */
+.m-phone-status {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #8b949e; padding: 0 2px 5px; overflow: hidden;
+}
+.m-phone-status .phone-status-text {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.m-phone-status .spacer { flex: 1 1 auto; }
+.phone-btn {
+  flex: 0 0 auto; font-family: inherit; font-size: 11px; line-height: 1;
+  padding: 4px 8px; border-radius: 4px; cursor: pointer;
+  border: 1px solid #30363d; background: #21262d; color: #adbac7;
+}
+.phone-btn:hover { background: #30363d; }
+.phone-btn.on { background: #00897b; border-color: #00897b; color: #fff; }
+
+/* 窄框图标条：安卓是 38dp 宽、选中项青底白字（#00897B） */
+.m-strip {
+  flex: 0 0 38px; display: flex; flex-direction: column;
+  background: #263238; border-radius: 6px; overflow: hidden;
+}
+.strip-btn {
+  font-family: inherit; font-size: 15px; line-height: 1; width: 100%;
+  padding: 8px 0; border: 0; cursor: pointer;
+  background: transparent; color: #90a4ae;
+}
+.strip-btn.on { background: #00897b; color: #fff; }

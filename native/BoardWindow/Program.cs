@@ -61,6 +61,12 @@ namespace F1BoardWindow
 
     internal sealed class BoardForm : Form
     {
+        /// <summary>
+        /// 我们原生窗口的 UA 标记。Java 侧（WebServer.fromShell）按同一个字符串判断，
+        /// 改这里必须同步改那边。
+        /// </summary>
+        internal const string ShellMarker = "F1RaceControlShell/1";
+
         private readonly Args _a;
         private readonly WebView2 _view;
         private readonly System.Windows.Forms.Timer _saveTimer =
@@ -123,8 +129,16 @@ namespace F1BoardWindow
             //   这个方式还顺带覆盖了任务管理器强杀、服务器崩溃等情况。
             //
             // 判死门槛故意给得宽：3 秒一探，连续 4 次不通才关（约 12 秒）。
-            // 而且**必须连着过一次**才开始计数 —— 免得窗口比服务器先起来时
-            // 被自己误杀。
+            // 而且**必须连着过一次**才开始按这个宽门槛计数 —— 免得窗口比服务器
+            // 先起来时被自己误杀。
+            //
+            // ★ 但"没见过成功"不能是**无限期**的：那样服务器在窗口起步阶段就
+            //   死掉（或者第一次探测因任何原因没成功）时，这个窗口就永远留着了
+            //   —— 正是用户反馈的"服务器关了还有小窗没关"。
+            //   实测踩到：起实例后马上杀掉服务器，窗口一直不倒。
+            //   所以没见过成功时用更耐心的门槛（10 次 ≈ 30 秒）兜底：
+            //   正常启动几秒内就能探到，30 秒足够；真是服务器早早死了，
+            //   窗口最多多留 30 秒也会自己走掉。
             if (a.Url != null && !a.NoWatchdog)
             {
                 _watchTimer.Interval = 3000;
@@ -149,13 +163,17 @@ namespace F1BoardWindow
                     _watchSeen = true;
                     _watchFails = 0;
                 }
-                else if (_watchSeen)
+                else
                 {
+                    // 见过成功之后：4 次不通就关（约 12 秒）。
+                    // 还没见过成功：可能是服务器还没起来，给 10 次（约 30 秒）
+                    // 的耐心 —— 但不能无限等，否则窗口会被永久搁置。
                     _watchFails++;
-                    if (_watchFails >= 4)
+                    int need = _watchSeen ? 4 : 10;
+                    if (_watchFails >= need)
                     {
                         _watchTimer.Stop();
-                        Close();   // 服务器不在了，这个窗口留着也只是个空壳
+                        Close();   // 服务器不在了（或压根没起来），窗口留着只是空壳
                     }
                 }
             }
@@ -217,6 +235,18 @@ namespace F1BoardWindow
                 s.IsZoomControlEnabled = true;             // 允许 Ctrl+滚轮缩放
                 s.IsPinchZoomEnabled = true;
                 s.AreBrowserAcceleratorKeysEnabled = true;
+
+                // ★ 在 UA 尾巴上盖一个标记，让服务器能认出"这一份页面跑在我们
+                //   自己的窗口里"。
+                //   为什么需要它：服务器只看来源地址分不出"我们的窗口"和"本机的
+                //   浏览器"—— 两者都是回环地址。而这两者的期望完全相反：
+                //   我们的窗口里点「弹出」要再开一个原生小窗（像微信那样），
+                //   浏览器里点「弹出」要开一个网页标签页（用户明确要求的）。
+                //   用 UA 而不是 URL 参数：/api/boards 这种轮询请求也带 UA，
+                //   前端不用记住"我是谁"，少一处能忘掉的东西。
+                //   注意这只决定"想要哪种窗口"；能不能开原生窗口仍然由服务器
+                //   按来源地址判断（非回环一律不给开），安全边界没变。
+                s.UserAgent = s.UserAgent + " " + ShellMarker;
 
                 _view.CoreWebView2.Navigate(_a.Url);
             }

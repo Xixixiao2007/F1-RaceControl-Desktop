@@ -211,6 +211,41 @@ st, body = post("/api/popout/nope")
 check("未知看板 → 404", st == 404, st)
 check("报错也是 JSON（不是 HTML）", '"error"' in body, body[:60])
 
+# ★ 0.1.5 起"弹出"分两种形态，判定在服务器侧：
+#     跑在我们自己窗口里的页面 → 开原生小窗（像微信那样的独立窗口）
+#     浏览器里的页面（哪怕在本机）→ 开网页标签页
+#   两者都是回环地址，只能靠 UA 上的标记区分（见 WebServer.fromShell）。
+#   这里只验**判定**，不真的开窗口 —— 真的开/收交给 test_watchdog.py，
+#   免得自检时在用户屏幕上闪一个窗口出来。
+def post_ua(path, ua):
+    req = urllib.request.Request(BASE + path, method="POST",
+                                 headers={"User-Agent": ua})
+    with OPENER.open(req, timeout=20) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def get_ua(path, ua):
+    req = urllib.request.Request(BASE + path, headers={"User-Agent": ua})
+    with OPENER.open(req, timeout=20) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Safari/537.36 Edg/141"
+SHELL_UA = BROWSER_UA + " F1RaceControlShell/1"
+
+b = get_ua("/api/boards", BROWSER_UA)
+check("本机浏览器：canNative=false（不显示「收回全部」）",
+      b.get("canNative") is False, b.get("canNative"))
+b = get_ua("/api/boards", SHELL_UA)
+check("我们的窗口：canNative=true", b.get("canNative") is True, b.get("canNative"))
+
+d = post_ua("/api/popout/tyres", BROWSER_UA)
+check("本机浏览器点弹出 → 网页标签页",
+      d.get("mode") == "tab" and d.get("url") == "/board/tyres" and not d.get("popped"),
+      "%s / %s" % (d.get("mode"), d.get("url")))
+d = post_ua("/api/popout/all", BROWSER_UA)
+check("本机浏览器不能收回全部（如实说）", d.get("ok") is False, d.get("error"))
+
 # ★ 安全不变量：非回环来源不许让这台电脑开窗口。
 #   只从本机走局域网地址请求一次就能验证 —— 服务器看到的来源就不是回环了。
 #   这条要是坏了，同网段任何人都能让你的电脑弹窗。
