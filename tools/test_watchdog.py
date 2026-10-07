@@ -162,8 +162,11 @@ def main():
         # cwd 设成被应用目录：Boards.findBoardWindow 先看 jar 同级的 native/，
         # 所以这样才会用到**包里**的 F1BoardWindow.exe，而不是开发目录里那个。
         f.write('cd /d "%s"\r\n' % app)
-        f.write('"%s" -Dfile.encoding=UTF-8 -jar "%s" --port %s --no-window\r\n'
-                % (JAVA, jar, PORT))
+        # ★ 服务器输出要落盘：以前这行没写重定向，输出全进了那个新开的控制台
+        #   窗口，测试一失败就完全没线索（窗口为什么关的、服务器说过什么，
+        #   都查不到）。log 这个变量本来就定义在那儿，却一直没人用。
+        f.write('"%s" -Dfile.encoding=UTF-8 -jar "%s" --port %s --no-window'
+                ' > "%s" 2>&1\r\n' % (JAVA, jar, PORT, log))
 
     print("== 1. 用真控制台窗口启动服务器（--no-window，窗口全部靠弹出）==")
     p = subprocess.Popen(["cmd.exe", "/c", cmd], creationflags=subprocess.CREATE_NEW_CONSOLE)
@@ -197,7 +200,19 @@ def main():
 
     print("== 3. 服务器活着，等 22 秒（不该被误杀）==")
     time.sleep(22)
-    check("窗口还在（看门狗不误杀）", len(my_windows()) == 2, len(my_windows()))
+    now = my_windows()
+    check("窗口还在（看门狗不误杀）", len(now) == 2, len(now))
+    if len(now) != 2:
+        # 分清"被看门狗误杀"还是"被别的东西关掉了"：服务器这会儿还健康的话，
+        # 看门狗没有理由动手（它只在 /api/health 连续不通时才关窗）。
+        try:
+            alive = http("/api/health", timeout=3).get("ok")
+        except Exception as e:
+            alive = "连不上：%r" % e
+        print("     ★ 服务器还健康吗：%s" % alive)
+        print("     ★ 若服务器健康而窗口不见了，就不是看门狗干的 —— 多半是"
+              "有人手动关了窗（测试窗和真窗长得一样），或者别处点了「收回全部」。")
+        print("     ★ 服务器日志（这个文件就是为这种情况留的）：%s" % log)
 
     print("== 4. 关掉控制台窗口（= 用户点右上角的 X）==")
     hw = find_window("F1WATCHDOGTEST")

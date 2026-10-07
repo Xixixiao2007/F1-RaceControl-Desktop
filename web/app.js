@@ -613,12 +613,18 @@
       d.appendChild(el('span', 'mtime', msgTime(m)));
       var cat = el('span', 'mcat', m.category || m.flag || '');
       if (m.category || m.flag) { d.appendChild(cat); }
-      d.appendChild(el('span', 'mtext', line.zh));
-      // 悬停看英文原文和 F1 官方的 UTC 时间戳
-      var tip = [];
-      if (line.translated && line.en && line.en !== line.zh) { tip.push(line.en); }
-      if (m.utc) { tip.push(m.utc); }
-      if (tip.length) { d.title = tip.join('\n'); }
+      // ★ 译文和**原文**都要看得见 —— 安卓的 RowAdapter 就是这么两行：
+      //   body = 译文（14sp 白），orig = 原文（10sp 半透明白，可见）。
+      //   原来我只把原文塞进 title 悬停提示里：手机上根本没有悬停，
+      //   等于原文完全看不到（用户一眼就看出来"怎么只剩翻译了"）。
+      var body = el('div', 'mbody');
+      body.appendChild(el('span', 'mtext', line.zh));
+      if (line.translated && line.en && line.en !== line.zh) {
+        body.appendChild(el('span', 'morig', line.en));
+      }
+      d.appendChild(body);
+      // 悬停仍然给 F1 官方的 UTC 时间戳（原文已经显示出来了，不再重复）
+      if (m.utc) { d.title = m.utc; }
       list.appendChild(d);
     }
     box.appendChild(list);
