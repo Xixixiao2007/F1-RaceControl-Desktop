@@ -48,6 +48,23 @@ python tools\build.py --run -- --port 8720 --replay ..\F1-RaceControl\tools\mock
 python tools\check_server.py 8720
 ```
 
+**控制台中文**（不要跳过这条，它的坑很隐蔽）：
+
+```bat
+python tools\test_console_encoding.py
+```
+
+它在**真控制台窗口**里跑，再**读回屏幕缓冲区**。必须这么做 —— 我们别的测试都是
+把子进程输出重定向到文件/管道再读，而重定向时 Java 用 `file.encoding`，输出是对的，
+所以「控制台里中文全是问号」这个 bug 在重定向下**完全不出现**，用户截图反馈才发现。
+
+根因：`chcp 65001` 之后 Java 8 把 `sun.stdout.encoding` 报成 `cp65001`，
+可它并不真认这个代码页，`PrintStream` 用的是平台默认编码（实测 GBK）→ 写出 GBK 字节、
+控制台按 UTF-8 解 → 中文成替换字符。对照实验：`dsh\tools\probe_console_encoding.py`。
+修法是两处都留着：启动脚本的 `-Dsun.stdout.encoding=UTF-8`，加上
+`DesktopMain.fixConsoleEncoding`（只在自报 `cp65001` 时换 UTF-8，这样直接
+`java -jar` 也对；GBK 控制台本来是对的，别去动）。
+
 `check_server.py` 覆盖：健康检查、状态体积、车手/消息/区段数量、
 中文翻译与回落、旗语栏几何合计必须为 1000‰、圆环角度必须等于 `F1Layout.ringStarts`、
 页面可达、SSE 真的在推、弹出接口、以及下面两条不变量。

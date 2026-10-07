@@ -249,6 +249,17 @@ python tools\build_native.py
 **端口被占用**
 换一个：`--port 8800`。用 `--port 0` 让系统随便挑也行，实际端口会在启动信息里打印。
 
+**控制台里的中文变成问号/乱码**
+0.1.8 已修，用新版的 `启动.cmd` 就正常。原因值得记一笔：启动脚本里的 `chcp 65001`
+会把控制台切到 UTF-8，而 Java 8 拿到这个代码页后**自己编错了**（它把
+`sun.stdout.encoding` 报成 `cp65001`，实际却用平台默认的 GBK 去编码），于是写出的
+字节和控制台的对不上 —— 同一个窗口里 `cmd.exe` 自己 echo 的中文倒是好的。
+自己手动 `java -jar` 时也修好了；万一在别的地方还遇到，加上这个参数就行：
+
+```bat
+java -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 -jar F1-RaceControl-Desktop.jar --open
+```
+
 **任务管理器里看到两个 `java.exe`**
 正常，不是双开。用 PATH 里的 `java`（Oracle JRE 装的 `javapath` 转发器）启动时，
 它本身就是个小程序（约 12MB、1 个线程、不占端口），真正跑起来的是它派生出来的

@@ -1,9 +1,12 @@
 package com.haf1.racecontrol.desktop;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,13 +23,14 @@ import com.haf1.racecontrol.ReplayClient;
  */
 public final class DesktopMain {
 
-    public static final String VERSION = "0.1.7";
+    public static final String VERSION = "0.1.8";
     public static final int DEFAULT_PORT = 8720;
 
     private DesktopMain() {
     }
 
     public static void main(String[] args) throws Exception {
+        fixConsoleEncoding();   // ★ 必须最先做：后面每一行都可能带中文
         Options o;
         try {
             o = Options.parse(args);
@@ -268,6 +272,42 @@ public final class DesktopMain {
             b.append(' ');
         }
         return b.toString();
+    }
+
+    /**
+     * 让控制台里的中文能正常显示（必须在打印任何东西之前调用）。
+     *
+     * ★ 用户截图反馈"编码不对，都是问号"，根因在这里：
+     *   启动脚本里有 `chcp 65001`，Java 8 于是把 sun.stdout.encoding 报成
+     *   "cp65001" —— 可它**并不真认这个代码页**，PrintStream 实际用的是平台
+     *   默认编码（实测 file.encoding=GBK）。结果是 Java 写 GBK 字节、控制台按
+     *   UTF-8 解释，中文全变成替换字符（屏幕上看着就是"???"）。
+     *   同一个窗口里 cmd.exe 自己 echo 的中文是好的 —— 所以和字体、和代码页
+     *   设置都无关，纯粹是 JVM 这一侧编错了。
+     *
+     *   三种对照实测（dsh\tools\probe_console_encoding.py，真控制台 + 读回屏幕
+     *   缓冲区；用重定向测不出来，那样 Java 会走 file.encoding 反而是对的）：
+     *     chcp 65001 + 什么都不加                     -> 乱码（就是用户看到的）
+     *     chcp 65001 + -Dsun.stdout.encoding=UTF-8    -> 正常
+     *     chcp 65001 + 这段代码自己换 UTF-8           -> 正常
+     *   启动脚本里那个参数和这段代码都留着：有人不看脚本直接 `java -jar` 时也能对。
+     *
+     *   只在控制台自报 cp65001 时才动 stdout。GBK 控制台（sun.stdout.encoding=GBK）
+     *   本来就是对的，别去搅；重定向到文件/管道时这个属性是 null 或别的值，也不动。
+     */
+    private static void fixConsoleEncoding() {
+        String enc = System.getProperty("sun.stdout.encoding");
+        if (enc == null || !enc.toLowerCase().startsWith("cp65001")) {
+            return;
+        }
+        try {
+            PrintStream ps = new PrintStream(
+                    new FileOutputStream(FileDescriptor.out), true, "UTF-8");
+            System.setOut(ps);
+            System.setErr(ps);
+        } catch (Exception e) {
+            // 换不了就算了 —— 总比为了这行字崩掉强
+        }
     }
 
     private static void usage() {

@@ -1,5 +1,39 @@
 # 更新日志
 
+## 0.1.8 — 控制台里的中文不再是问号（2026-10-07）
+
+你的截图：「编码不对，都是问号」。
+
+**同一个窗口里 cmd.exe 自己 echo 的中文是好的**，只有 Java 打的字花了 ——
+这一条就排除了字体和代码页设置，问题在 JVM 这一侧：
+
+启动脚本里有 `chcp 65001`，Java 8 于是把 `sun.stdout.encoding` 报成 `cp65001`，
+**可它并不真认这个代码页**，`PrintStream` 实际用的是平台默认编码
+（实测 `file.encoding=GBK`）。结果：Java 写 GBK 字节，控制台按 UTF-8 解，
+中文全成替换字符（屏幕上看着就是 `???`）。
+
+三种对照实测（真控制台窗口 + 读回屏幕缓冲区，见
+`dsh\tools\probe_console_encoding.py`）：
+
+| 启动方式 | 中文 |
+| --- | --- |
+| `chcp 65001` + 什么都不加 | ✗ 乱码（就是你看到的） |
+| `chcp 65001` + `-Dsun.stdout.encoding=UTF-8` | ✓ 正常 |
+| `chcp 65001` + Java 自己发现 `cp65001` 就换 UTF-8 | ✓ 正常 |
+
+两处都做了，缺一不可：
+
+- 启动脚本加上 `-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8`；
+- Java 里也加了一道兜底（`DesktopMain.fixConsoleEncoding`）：只在控制台自报
+  `cp65001` 时把 stdout/stderr 换成 UTF-8。**有人不看脚本、直接 `java -jar`
+  时也正常**。GBK 控制台（`sun.stdout.encoding=GBK`）本来就是对的，不去动它。
+
+**为什么以前没测出来**：我们所有测试都是把子进程输出**重定向到文件/管道**再读，
+而重定向时 Java 用的是 `file.encoding`，输出是对的 —— 这个 bug 只有在真的坐在
+一个控制台窗口里才会现形。所以新增了 `tools/test_console_encoding.py`：
+在真控制台里跑，并且**读回屏幕缓冲区**（不是重定向），三种启动方式都要是中文。
+以后跑测试就能挡住这一类问题。
+
 ## 0.1.7 — 通报的英文原文看得见了（之前只在悬停提示里）（2026-10-07）
 
 你的问题：「消息原文呢？怎么只剩翻译了？」

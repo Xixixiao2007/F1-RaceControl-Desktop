@@ -71,7 +71,12 @@ echo 正在启动 F1 Race Control ...
 echo （关掉这个窗口或按 Ctrl+C 就会退出，小窗也会一起关掉）
 echo （默认只开主界面；想看单独的小窗，在界面上点每块面板标题栏的「弹出」）
 echo.
-java -jar F1-RaceControl-Desktop.jar --open %*
+rem ★ -Dsun.stdout.encoding=UTF-8 不能少：chcp 65001 之后 Java 8 会把
+rem   控制台编码报成 cp65001，可它并不真认这个代码页，PrintStream 会用
+rem   平台默认编码（GBK）→ 中文在控制台里全是问号/乱码。
+rem   Java 里也有一道同样的兜底（DesktopMain.fixConsoleEncoding），
+rem   所以直接 java -jar 也不会花。
+java -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 -jar F1-RaceControl-Desktop.jar --open %*
 echo.
 echo 已退出。
 pause
@@ -86,7 +91,7 @@ echo 这一步会弹一次"用户账户控制"，问你要不要允许修改防�
 echo 允许之后，同一个 Wi-Fi 下的手机 / 平板 / iPhone 就能打开看板。
 echo.
 
-java -jar F1-RaceControl-Desktop.jar --firewall --open %*
+java -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 -jar F1-RaceControl-Desktop.jar --firewall --open %*
 echo.
 echo 已退出。
 pause
