@@ -144,6 +144,14 @@ html, body {
 .p-pop:hover { background: #30363d; border-color: #4b5563; color: #fff; }
 .p-pop.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
 .p-pop.on:hover { background: #388bfd; }
+
+/* 头部的「收回全部 (N)」：位置在状态栏那一排，不需要 margin-left:auto
+   （那会把已经右对齐的状态文字推乱），用红色系表示这是"关东西"的动作。 */
+.p-pop-all {
+  margin-left: 8px;
+  border-color: #8b3a3a; background: #3d1d1d; color: #ffb4b4;
+}
+.p-pop-all:hover { background: #5c2626; border-color: #b04a4a; color: #fff; }
 .big { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
 .sub { font-size: 12px; color: #8b949e; }
 

@@ -116,6 +116,27 @@ public final class WebServer {
         return false;
     }
 
+    /**
+     * 收回所有已弹出的看板窗口。
+     *
+     * 界面上那个「收回全部」按钮走这里。别去动 Boards.OPENED ——
+     * 那张表还包括主界面窗口，用户按「收回全部」显然不是想把自己所在的
+     * 这个窗口关掉。
+     */
+    private int closeAllPopped() {
+        int n = 0;
+        List<String> keys = new ArrayList<String>(popped.keySet());
+        for (int i = 0; i < keys.size(); i++) {
+            String k = keys.get(i);
+            Process p = popped.remove(k);
+            if (Boards.isAlive(p)) {
+                Boards.close(p);
+                n++;
+            }
+        }
+        return n;
+    }
+
     public int port() {
         return boundPort;
     }
@@ -190,6 +211,29 @@ public final class WebServer {
                 String path = ex.getRequestURI().getPath();
                 String id = path.startsWith("/api/popout/")
                         ? path.substring("/api/popout/".length()) : "";
+
+                // 「收回全部」：一次把所有弹出去的小窗关掉。
+                // 必须放在 isBoard 判断之前 —— "all" 不是一个看板 id。
+                if ("all".equals(id)) {
+                    if (!fromThisMachine(ex)) {
+                        // 手机上的浏览器：我们的窗口不在那台设备上，关了也没意义。
+                        // 如实说，而不是假装成功。
+                        Json.Obj o = new Json.Obj();
+                        o.put("ok", false);
+                        o.put("mode", "tab");
+                        o.put("error", "只有本机能收回窗口");
+                        sendJson(ex, 200, o.done());
+                        return;
+                    }
+                    int n = closeAllPopped();
+                    Json.Obj o = new Json.Obj();
+                    o.put("ok", true);
+                    o.put("closed", n);
+                    o.put("popped", false);
+                    sendJson(ex, 200, o.done());
+                    return;
+                }
+
                 if (!isBoard(id)) {
                     error(ex, 404, "没有这个看板：" + id);
                     return;
@@ -230,7 +274,12 @@ public final class WebServer {
                 }
 
                 try {
-                    int[] pos = Boards.suggestedSlot(popped.size(), boardW, boardH);
+                    // 位置：摆过的回到原位（用户摆一次就够了），没摆过的才给个网格槽位。
+                    // ★ 不能无条件传槽位 —— 传了坐标，窗口那边就当成"用户显式指定"，
+                    //   记住的位置永远用不上。
+                    int[] pos = Boards.hasRememberedBounds(id)
+                            ? new int[]{-1, -1}
+                            : Boards.suggestedSlot(popped.size(), boardW, boardH);
                     Boards.Opened op = Boards.open(boardExe, browser, id, title,
                             "http://127.0.0.1:" + boundPort + "/board/" + id,
                             boardW, boardH, pos[0], pos[1]);

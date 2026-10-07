@@ -33,6 +33,105 @@ public final class Boards {
 
     public static final String BOARD_EXE = "F1BoardWindow.exe";
 
+    /**
+     * 我们开出去的窗口，全记在这。
+     *
+     * 用途是**一键全关**：关掉那个 cmd 控制台窗口时，这些窗口也得跟着关，
+     * 否则用户会看到一堆"连接断了"的空壳留在桌面上（他反馈过一次）。
+     * 用同步 List 因为开窗口可能来自 HTTP 线程（点面板弹出）和主线程（启动参数）。
+     */
+    private static final List<Process> OPENED =
+            java.util.Collections.synchronizedList(new ArrayList<Process>());
+
+    /** 注册一个我们开出去的窗口。 */
+    private static void track(Process p) {
+        if (p != null) {
+            OPENED.add(p);
+        }
+    }
+
+    /**
+     * 关掉所有我们开过的窗口（主界面 + 所有看板）。
+     *
+     * 只关还活着的，并且顺手把已经自己退出的从表里剔掉 —— 用户在界面上
+     * 点过「收回」的那些早就没了，不能算进返回值里。
+     *
+     * @return 真的关掉了几个
+     */
+    public static int closeAll() {
+        int n = 0;
+        synchronized (OPENED) {
+            List<Process> keep = new ArrayList<Process>();
+            for (int i = 0; i < OPENED.size(); i++) {
+                Process p = OPENED.get(i);
+                if (isAlive(p)) {
+                    close(p);
+                    n++;
+                }
+                keep.add(p);
+            }
+            OPENED.clear();
+            OPENED.addAll(keep);
+        }
+        return n;
+    }
+
+    /** 还有几个窗口活着。 */
+    public static int liveCount() {
+        int n = 0;
+        synchronized (OPENED) {
+            for (int i = 0; i < OPENED.size(); i++) {
+                if (isAlive(OPENED.get(i))) {
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
+
+    // ------------------------------------------------------------------
+    // 记住过位置没有
+    // ------------------------------------------------------------------
+
+    /**
+     * 这块看板（这个 key）之前记住过窗口位置没有。
+     *
+     * 为什么要问这个：位置有两套来源 —— 用户摆好的（F1BoardWindow 存在
+     * {@code %LOCALAPPDATA%\F1-RaceControl-Desktop\windows\<key>.json}）和
+     * 我们给的网格槽位。命令行给的位置优先级**最高**，所以只要我们把槽位传过去，
+     * 用户摆好的位置就永远用不上了 —— 而文档承诺的是"摆一次就够了"。
+     * 所以：记住过就别传位置，没记住过才按槽位铺。
+     *
+     * ★ 路径和文件名规则必须和 native/BoardWindow/Program.cs 的
+     *   WindowMemory.Safe 一致：非字母数字（保留 - 和 _）换成 _，空 key 用 default。
+     */
+    public static boolean hasRememberedBounds(String key) {
+        try {
+            String local = System.getenv("LOCALAPPDATA");
+            if (local == null || local.length() == 0) {
+                return false;
+            }
+            File f = Paths.get(local, "F1-RaceControl-Desktop", "windows",
+                    safeKey(key) + ".json").toFile();
+            return f.isFile() && f.length() > 0;
+        } catch (Exception e) {
+            return false;   // 判断不出来就当没记住，走槽位，不影响能用
+        }
+    }
+
+    /** 和 WindowMemory.Safe 同一套规则。 */
+    static String safeKey(String key) {
+        if (key == null || key.length() == 0) {
+            return "default";
+        }
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < key.length(); i++) {
+            char c = key.charAt(i);
+            b.append(Character.isLetterOrDigit(c) || c == '-' || c == '_' ? c : '_');
+        }
+        return b.toString();
+    }
+
     // ------------------------------------------------------------------
     // 找原生窗口程序
     // ------------------------------------------------------------------
@@ -192,7 +291,10 @@ public final class Boards {
         File nil = nullDevice();
         pb.redirectOutput(nil);
         pb.redirectError(nil);
-        return pb.start();
+        // 开出来的每个窗口都登记一下：退出时要靠这张表把窗口全关掉。
+        Process p = pb.start();
+        track(p);
+        return p;
     }
 
     /** 兜底方案：Edge/Chrome 的无地址栏窗口。 */

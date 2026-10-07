@@ -18,7 +18,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Net.Http;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -63,6 +65,15 @@ namespace F1BoardWindow
         private readonly WebView2 _view;
         private readonly System.Windows.Forms.Timer _saveTimer =
             new System.Windows.Forms.Timer();
+        private readonly System.Windows.Forms.Timer _watchTimer =
+            new System.Windows.Forms.Timer();
+        private static readonly HttpClient Http = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(2.5)
+        };
+        private int _watchFails;
+        private bool _watchSeen;      // 连上过服务器没有
+        private bool _watchBusy;      // 上一轮探测还没回来
         private bool _fullscreen;
         private Rectangle _restoreBounds;
         private FormBorderStyle _restoreStyle;
@@ -101,6 +112,74 @@ namespace F1BoardWindow
             _saveTimer.Tick += OnSaveTick;
             Move += OnBoundsChanged;
             Resize += OnBoundsChanged;
+
+            // 服务器没了就自己关掉。
+            //
+            // ★ 为什么不只靠服务器的退出钩子：实测（见 tools/probe_hook.py）
+            //   在 Windows 上**关掉控制台窗口**时，JVM 的 shutdown hook 根本
+            //   不执行 —— 只有按 Ctrl+C 才会执行。而用户最常见的动作恰恰是
+            //   点那个 cmd 窗口的 X。那条路上服务器来不及通知任何人，
+            //   只能由窗口自己发现"服务器不在了"。
+            //   这个方式还顺带覆盖了任务管理器强杀、服务器崩溃等情况。
+            //
+            // 判死门槛故意给得宽：3 秒一探，连续 4 次不通才关（约 12 秒）。
+            // 而且**必须连着过一次**才开始计数 —— 免得窗口比服务器先起来时
+            // 被自己误杀。
+            if (a.Url != null && !a.NoWatchdog)
+            {
+                _watchTimer.Interval = 3000;
+                _watchTimer.Tick += OnWatchTick;
+                _watchTimer.Start();
+            }
+        }
+
+        /// <summary>每 3 秒问一次服务器的 /api/health；连续不通就关掉自己。</summary>
+        private async void OnWatchTick(object sender, EventArgs e)
+        {
+            if (_watchBusy)
+            {
+                return;   // 上一轮还没回来（比如正好卡在网络超时）
+            }
+            _watchBusy = true;
+            try
+            {
+                bool ok = await Task.Run(() => HealthOk(Args.HealthUrl(_a.Url)));
+                if (ok)
+                {
+                    _watchSeen = true;
+                    _watchFails = 0;
+                }
+                else if (_watchSeen)
+                {
+                    _watchFails++;
+                    if (_watchFails >= 4)
+                    {
+                        _watchTimer.Stop();
+                        Close();   // 服务器不在了，这个窗口留着也只是个空壳
+                    }
+                }
+            }
+            finally
+            {
+                _watchBusy = false;
+            }
+        }
+
+        private static bool HealthOk(string url)
+        {
+            if (url == null)
+            {
+                return false;
+            }
+            try
+            {
+                HttpResponseMessage r = Http.GetAsync(url).GetAwaiter().GetResult();
+                return r.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private void OnBoundsChanged(object sender, EventArgs e)
@@ -372,6 +451,23 @@ namespace F1BoardWindow
         internal int Y = -1;
         internal bool DevTools;
 
+        /// <summary>不监视服务器死活（调试用：服务器没起来也想开着窗口看界面）。</summary>
+        internal bool NoWatchdog;
+
+        /// <summary>从看板地址推出服务器健康检查地址；推不出来返回 null。</summary>
+        internal static string HealthUrl(string boardUrl)
+        {
+            try
+            {
+                var u = new Uri(boardUrl);
+                return u.Scheme + "://" + u.Authority + "/api/health";
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         internal static Args Parse(string[] args)
         {
             var a = new Args();
@@ -388,6 +484,7 @@ namespace F1BoardWindow
                     case "--x": a.X = Int(Next(args, ref i, k), k); break;
                     case "--y": a.Y = Int(Next(args, ref i, k), k); break;
                     case "--devtools": a.DevTools = true; break;
+                    case "--no-watchdog": a.NoWatchdog = true; break;
                     default:
                         throw new ArgumentException("不认识的参数：" + k);
                 }

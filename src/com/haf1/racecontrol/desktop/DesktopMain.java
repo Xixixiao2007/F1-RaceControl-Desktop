@@ -20,7 +20,7 @@ import com.haf1.racecontrol.ReplayClient;
  */
 public final class DesktopMain {
 
-    public static final String VERSION = "0.1.3";
+    public static final String VERSION = "0.1.4";
     public static final int DEFAULT_PORT = 8720;
 
     private DesktopMain() {
@@ -167,8 +167,11 @@ public final class DesktopMain {
             if (boardExe != null || browser != null) {
                 if (o.openMain) {
                     String url = Firewall.url("127.0.0.1", port);
+                    // 位置交给窗口自己定：先看有没有记住过（用户摆好的优先），
+                    // 没有才用默认。★ 这里传 -1 是关键 —— 只要传了坐标，
+                    // 窗口那边就会当成"用户显式指定"，记住的位置永远轮不上。
                     String how = openWindow(boardExe, browser, "main", "F1 Race Control",
-                            url, o.mainWidth, o.mainHeight, 0, 0);
+                            url, o.mainWidth, o.mainHeight, -1, -1);
                     opened.add(new String[]{"主界面" + how, url});
                 }
                 int idx = 0;
@@ -178,7 +181,11 @@ public final class DesktopMain {
                         System.out.println("  ★ 没有这个看板：" + id);
                         continue;
                     }
-                    int[] pos = Boards.suggestedSlot(idx, o.boardWidth, o.boardHeight);
+                    // 摆过位置的就回到原位；没摆过才按网格铺开，
+                    // 否则 --all-boards 第一次会 9 个窗口叠在一起。
+                    int[] pos = Boards.hasRememberedBounds(id)
+                            ? new int[]{-1, -1}
+                            : Boards.suggestedSlot(idx, o.boardWidth, o.boardHeight);
                     String url = Firewall.url("127.0.0.1", port) + "board/" + id;
                     String how = openWindow(boardExe, browser, id, boardTitle(id),
                             url, o.boardWidth, o.boardHeight, pos[0], pos[1]);
@@ -198,6 +205,19 @@ public final class DesktopMain {
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             @Override
             public void run() {
+                // ★ 关掉控制台窗口时，我们自己开出去的窗口也要跟着关。
+                //   否则桌面上会留一堆"连接断了"的空壳，用户还得一个个去点 X
+                //   （他反馈过这个）。这件事必须在钩子里做：JVM 退出后没人再管它们。
+                //   注意：任务管理器"结束进程"这类强杀不会走钩子，那种情况下
+                //   窗口会留着 —— 但位置记着，重开就回到原位。
+                try {
+                    int n = Boards.closeAll();
+                    if (n > 0) {
+                        System.out.println("已关闭 " + n + " 个窗口。");
+                    }
+                } catch (Exception ignored) {
+                    // 退出路径，尽量别抛
+                }
                 try {
                     stopSrc.stop();
                 } catch (Exception ignored) {
@@ -258,9 +278,9 @@ public final class DesktopMain {
         System.out.println("  --port N           监听端口（默认 " + DEFAULT_PORT + "，0 = 随便挑一个）");
         System.out.println("  --web DIR          界面目录（默认自动找 web/）");
         System.out.println("  --board-exe PATH   F1BoardWindow.exe 的路径（默认自动找）");
-        System.out.println("  --open             启动时打开主界面窗口");
-        System.out.println("  --board a,b,c      把指定看板拉成独立窗口");
-        System.out.println("  --all-boards       打开全部 8 个看板");
+        System.out.println("  --open             启动时打开主界面窗口（**这是默认**，想关掉用 --no-window）");
+        System.out.println("  --board a,b,c      启动时就拉出指定看板（平时不用：界面上点「弹出」即可）");
+        System.out.println("  --all-boards       启动时把全部 9 个看板都拉出来");
         System.out.println("  --list-boards      列出看板 id 就退出");
         System.out.println("  --firewall         自动加 Windows 防火墙入站规则（会弹一次 UAC）");
         System.out.println("  --firewall-check   只检查防火墙状态和端口监听，不做任何改动、不提权");
@@ -270,6 +290,10 @@ public final class DesktopMain {
         System.out.println("  --board-size WxH   看板窗口尺寸（默认 620x420）");
         System.out.println("  --no-window        只起服务器，不开任何窗口");
         System.out.println("  -h, --help         看这个");
+        System.out.println();
+        System.out.println("默认只开主界面；看板小窗在界面上点标题栏的「弹出」拉出来，");
+        System.out.println("再点「收回」或点顶部的「收回全部」关掉。关掉这个控制台窗口时");
+        System.out.println("（或者按 Ctrl+C），我们自己开的窗口也会一起关。");
     }
 
     // ------------------------------------------------------------------
@@ -278,7 +302,14 @@ public final class DesktopMain {
         int port = DEFAULT_PORT;
         String web;
         String boardExe;
-        boolean openMain;
+        /**
+         * 启动时开不开主界面窗口。
+         *
+         * ★ 默认 **true**：直接运行就等于"只开主屏"。看板窗口是用户自己
+         *   在界面上点「弹出」拉出来的 —— 一上来铺 9 个窗口会糊满整个屏幕，
+         *   而且大部分时候用户只想看总览。
+         */
+        boolean openMain = true;
         boolean noWindow;
         final List<String> boards = new ArrayList<String>();
         boolean firewall;

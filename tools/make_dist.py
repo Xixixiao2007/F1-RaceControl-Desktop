@@ -68,9 +68,10 @@ if errorlevel 1 (
 )
 
 echo 正在启动 F1 Race Control ...
-echo （关掉这个窗口或按 Ctrl+C 就会退出）
+echo （关掉这个窗口或按 Ctrl+C 就会退出，小窗也会一起关掉）
+echo （默认只开主界面；想看单独的小窗，在界面上点每块面板标题栏的「弹出」）
 echo.
-java -jar F1-RaceControl-Desktop.jar --open --all-boards %*
+java -jar F1-RaceControl-Desktop.jar --open %*
 echo.
 echo 已退出。
 pause
@@ -85,7 +86,7 @@ echo 这一步会弹一次"用户账户控制"，问你要不要允许修改防�
 echo 允许之后，同一个 Wi-Fi 下的手机 / 平板 / iPhone 就能打开看板。
 echo.
 
-java -jar F1-RaceControl-Desktop.jar --firewall --open --all-boards %*
+java -jar F1-RaceControl-Desktop.jar --firewall --open %*
 echo.
 echo 已退出。
 pause
@@ -101,7 +102,7 @@ F1 赛事控制消息的 Windows 客户端。直连 F1 官方公开数据流，
 
 怎么用
 ------
-双击「启动.cmd」即可。会打开主界面和全部 9 块看板窗口。
+双击「启动.cmd」即可。默认**只打开主界面**。
 
   另外双击「启动并允许局域网访问.cmd」会顺便加一条防火墙规则，
   之后同一个 Wi-Fi 下的手机 / iPhone 用浏览器就能看，界面完全一样。
@@ -109,8 +110,15 @@ F1 赛事控制消息的 Windows 客户端。直连 F1 官方公开数据流，
 
 看板窗口
 --------
-每块看板都是独立的窗口，可以随便拖动、拉伸缩放，任务栏里各自有图标，
-和微信/QQ 的窗口一样。窗口位置和大小会被记住，摆一次就够了。
+每块看板都能拉成一个独立的小窗口，和微信/QQ 的窗口一样：可以随便拖动、
+拉伸缩放，任务栏里各自有图标。窗口位置和大小会被记住，摆一次就够了。
+
+想拉出哪块，就在主界面上点那块面板标题栏右侧的「弹出」——
+需要哪块点哪块，不用一上来铺满屏幕。再点一次「收回」就关掉；
+顶部状态栏上还有「收回全部 (N)」，一次关掉所有小窗。
+手机上看的时候，同一个按钮是开一个新标签页。
+
+关掉这个 cmd 控制台窗口（或按 Ctrl+C）时，这些窗口会一起关掉。
 F11 全屏，Esc 退出全屏。
 
 没有比赛的时候

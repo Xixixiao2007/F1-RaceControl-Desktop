@@ -72,6 +72,22 @@ python tools\test_window_memory.py 8720
 它会用一个独立的 key（`testx`）开窗口、挪位置、强杀、再开一次，
 确认位置回来了；跑完删掉自己的记录文件，不动你的。
 
+还有一个测试验证"服务器没了，小窗自己关"，它必须走**真控制台窗口**这条路：
+
+```bat
+python tools\test_watchdog.py 8790
+```
+
+为什么不能用"起进程再 taskkill"来测：直接 `Popen` 出来的 java 没有自己的
+控制台窗口（它继承了父进程的），`taskkill` 不带 `/F` 时**什么也发不出去**，
+测试会假装通过。这个脚本用 `cmd.exe /c` + `CREATE_NEW_CONSOLE` 造一个真的
+控制台窗口，再给它发 `WM_CLOSE` —— 和用户用鼠标点那个 X 是同一件事。
+
+配套的探针 `tools\probe_hook.py` 用来回答一个更底层的问题：这条路和 Ctrl+C
+到底谁会执行 JVM 的 shutdown hook。**实测结论：关控制台窗口不执行，Ctrl+C 执行。**
+所以"关掉 cmd 之后小窗要跟着关"只能由窗口侧轮询服务器解决。留着这个探针是为了
+防止将来有人把那段轮询当成多余的代码"简化"回退出钩子 —— 那样 bug 会原样回来。
+
 ## 代码约定
 
 - **Java 源码必须能在 Java 8 上编译**（安卓那套 JDK 就是 8）。具体地：
@@ -116,6 +132,26 @@ python tools\test_window_memory.py 8720
 布局比例也归这里管：`.m-msgs` 是 `flex: 0 1 38%`（**不参与放大**），
 剩余空间全给圆环。它原来是 `flex: 1 1 46%`，会和圆环平分剩余空间，
 1600×900 下把圆环压到 144px。
+
+## 原生窗口的构建
+
+`F1BoardWindow.exe` **只有 151 KB 而且大小永远不变** —— 它是 .NET 的
+apphost，只是个启动器；**真正的代码在 `F1BoardWindow.dll` 里**。
+想确认"我改的代码到底进没进产物"，要搜 dll，别搜 exe：
+
+```powershell
+$b = [IO.File]::ReadAllBytes("native\BoardWindow\bin\Release\net9.0-windows\F1BoardWindow.dll")
+# 字符串字面量是 UTF-16，方法名在元数据里是 UTF-8，两种都要搜
+[Text.Encoding]::Unicode.GetString($b).Contains("/api/health")
+```
+
+（这个坑我踩过：改完代码搜 exe 搜不到符号，以为构建没生效，白查了一轮。
+其实构建一直是好的。）
+
+发布包（`tools/make_dist.py`）必须同时带上 `F1BoardWindow.exe` **和**
+`F1BoardWindow.dll`、`F1BoardWindow.runtimeconfig.json`、`*.deps.json`
+以及 `runtimes\win-x64\native\WebView2Loader.dll` —— 少了任何一个，
+窗口会开不出来或者里面一片空白。
 
 ## 提交
 

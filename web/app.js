@@ -39,6 +39,10 @@
   // 用户可能直接用窗口的 X 关掉，前端根本收不到那个事件。
   var popped = {};
 
+  // 这个页面所在的设备能不能让服务器开/关窗口（服务器按来源是不是回环判断）。
+  // 手机上为 false —— 那时显示"收回全部"是在骗人：那些窗口不在这台设备上。
+  var canNative = false;
+
   // 圆环量不到尺寸时允许补几次重绘（见 renderRing）。
   var refitLeft = 3;
 
@@ -126,8 +130,10 @@
       .then(function (d) {
         var next = {};
         (d.boards || []).forEach(function (b) { if (b.popped) { next[b.id] = true; } });
-        if (JSON.stringify(next) !== JSON.stringify(popped)) {
+        var cn = !!d.canNative;
+        if (JSON.stringify(next) !== JSON.stringify(popped) || cn !== canNative) {
           popped = next;
+          canNative = cn;
           repaint();
         }
       })
@@ -178,6 +184,39 @@
       ev.stopPropagation();   // 免得标题栏再触发一次
       popout(id);
     });
+    return b;
+  }
+
+  /**
+   * 一键收回所有弹出去的小窗。
+   *
+   * 只在本机显示这个按钮（canNative），因为那些窗口在**服务器这台电脑**上：
+   * 手机上是关不掉的，摆个按钮只会让人以为点了没用。
+   */
+  function closeAllPoppedAction() {
+    fetch('/api/popout/all', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.error) { errNote = d.error; }
+        popped = {};
+        repaint();
+      })
+      .then(null, function (e) {
+        errNote = '收回失败：' + ((e && e.message) || e);
+        repaint();
+      });
+  }
+
+  /** 「收回全部 (N)」按钮；没有小窗或不在本机时返回 null。 */
+  function popAllButton() {
+    var n = 0;
+    for (var k in popped) { if (popped[k]) { n++; } }
+    if (!n || !canNative) { return null; }
+    var b = el('button', 'p-pop p-pop-all');
+    b.type = 'button';
+    b.textContent = '收回全部 (' + n + ')';
+    b.title = '一次关掉所有弹出去的小窗（主界面会留着）';
+    b.addEventListener('click', closeAllPoppedAction);
     return b;
   }
 
@@ -605,6 +644,12 @@
       right.appendChild(el('span', 'badge', '回放 ' + (state.replayName || '')));
     }
     right.appendChild(el('span', 'badge', 'v' + ((state && state.version) || '?')));
+    // 只要有小窗弹出去，头部就给一个"一次全关"的出口。
+    // 没有这个按钮时用户只能一个个点「收回」，或者去关窗口 —— 他反馈过。
+    var all = popAllButton();
+    if (all) {
+      right.appendChild(all);
+    }
     head.appendChild(right);
 
     root.appendChild(head);
@@ -681,6 +726,11 @@
     var dot = el('span', 'dot' + (connected ? ' ok' : ' bad'));
     head.appendChild(dot);
     head.appendChild(el('span', 'b-sub', connected ? ago(lastPush) : (errNote || '未连接')));
+    // 在小窗里也能一键收回所有小窗（包括自己这个）—— 省得回到主界面去点。
+    var all = popAllButton();
+    if (all) {
+      head.appendChild(all);
+    }
     root.appendChild(head);
     var box = el('div', 'b-box b-' + id);
     // ★ 先入树再渲染。
