@@ -59,4 +59,14 @@ public class JSONArray {
         Object v = opt(index);
         return v == null ? "" : String.valueOf(v);
     }
+
+    /**
+     * 带默认值的重载。**安卓真机上本来就有**（org.json.JSONArray 自 API 1 起
+     * 就提供 optString(int, String)），只是这个桩以前没写，于是产品代码里一用
+     * 就编译不过 —— 属于桩不全，不是产品代码用错。
+     */
+    public String optString(int index, String fallback) {
+        Object v = opt(index);
+        return v == null ? fallback : String.valueOf(v);
+    }
 }

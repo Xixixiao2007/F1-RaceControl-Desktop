@@ -102,8 +102,14 @@ def run(tag, app, jar, flags):
         f.write("pause\n")
     p = subprocess.Popen(["cmd.exe", "/c", cmd],
                          creationflags=subprocess.CREATE_NEW_CONSOLE)
-    time.sleep(4)
-    lines = read_console(p.pid) or []
+    # ★ 轮询到"要看的字"出现为止，别赌固定 4 秒：控制台写入和 AttachConsole 之间
+    #   有竞争，赌一次会偶发读到空控制台（测试时红时绿，一度以为是产品问题）。
+    lines = []
+    for _ in range(8):
+        time.sleep(2)
+        lines = read_console(p.pid) or []
+        if any("赛道图" in l for l in lines):
+            break
     subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.5)

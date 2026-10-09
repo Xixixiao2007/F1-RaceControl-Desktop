@@ -473,14 +473,15 @@ public class ReplayClient implements FeedSource {
      * 正好是最该看到的东西。
      */
     private void rewriteUtc(JSONObject rec) {
-        if (!"RaceControlMessages".equals(rec.optString("target", ""))) {
+        // ★ 流名/载荷的取法不能自己写死 —— 官方现在把增量发成
+        //   target="feed" + arguments[流名, 载荷, 时间戳]，老形状才是
+        //   target=流名 + arguments[0]=载荷。这段以前只认老形状，于是**新形状
+        //   录成的回放包**不会重写时间戳（消息按原时间落进"历史"里，
+        //   告警不响、列表排序也怪）。交给 F1Feed 的公共取法，两处共用一份判断。
+        if (!"RaceControlMessages".equals(F1Feed.streamName(rec))) {
             return;
         }
-        JSONArray args = rec.optJSONArray("arguments");
-        if (args == null || args.length() == 0) {
-            return;
-        }
-        JSONObject payload = args.optJSONObject(0);
+        JSONObject payload = F1Feed.payloadOf(rec);
         if (payload == null) {
             return;
         }

@@ -128,6 +128,33 @@ python tools\test_watchdog_early.py
 （第一版我写的是"起实例后尽快杀服务器"，但那不保证赶上第一次探测之前 ——
 碰运气的测试会时红时绿。）
 
+**实时数据的协议形状**（0.1.9 修的那个大坑，动解析之前务必先读这段）：
+
+```bat
+python tools\test_feed_shapes.py
+```
+
+官方 `type=1` 增量消息有**两种形状**，都必须认：
+
+```
+老：{"type":1,"target":"RaceControlMessages","arguments":[{"Messages":[…]}]}
+新：{"type":1,"target":"feed","arguments":["RaceControlMessages",{…},"<utc>"]}
+```
+
+新形状里 `target` 固定是 `"feed"`，**流名在 `arguments[0]`**、载荷在 `arguments[1]`。
+取法**只有一处**：`F1Feed.streamName()` / `F1Feed.payloadOf()` —— 别在别处自己写
+`optString("target")`。`ReplayClient` 以前就是自己写的，于是新形状录成的回放包
+不重写时间戳（消息落进"历史"里、告警不响）。
+
+**排查"连上了但完全不刷新"**（症状：`/api/health` 的 `open`/`listenerOpen` 都是
+true、`updates` 一直不动、`error` 是空的）：
+
+1. `python dsh\tools\probe_live_now.py 70` 起真实例，看 updates 有没有涨；
+2. `python dsh\tools\probe_live_raw.py 40` 用**不走我们代码**的原始抓包，
+   直接看官方现在发的是什么形状；
+3. 两边对不上就是这种"静默丢弃"：把 `arguments[0]` 当载荷取会拿到 `null`，
+   于是每次都"没有变化" —— 既不刷新，也不报错。
+
 ## 代码约定
 
 - **Java 源码必须能在 Java 8 上编译**（安卓那套 JDK 就是 8）。具体地：

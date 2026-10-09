@@ -97,12 +97,55 @@ public class F1Feed {
             return onSnapshot(result);
         }
         if (type == 1) {
-            String target = rec.optString("target", "");
-            JSONArray args = rec.optJSONArray("arguments");
-            return onDelta(target, args == null || args.length() == 0
-                    ? null : args.optJSONObject(0));
+            return onDelta(streamName(rec), payloadOf(rec));
         }
         return false;
+    }
+
+    /**
+     * type=1 记录里的**流名**。官方有两种形状，都得认：
+     *
+     * <pre>
+     * 老：{"type":1,"target":"RaceControlMessages","arguments":[{"Messages":[…]}]}
+     * 新：{"type":1,"target":"feed","arguments":["RaceControlMessages",{…},"&lt;utc&gt;"]}
+     * </pre>
+     *
+     * ★ 新形状是 2026-10 实测出来的（原始抓包见 dsh\tools\probe_live_raw.py）：
+     * target 固定是 "feed"，**流名挪到了 arguments[0]**，arguments[1] 才是载荷，
+     * arguments[2] 是服务端时间戳。
+     *
+     * 这个变化当年把实时数据整个打断了，而且**报不出任何错**：老代码写的是
+     * "target 就是流名、载荷是 arguments[0]"，遇到新形状就成了
+     * {@code onDelta("feed", null)} —— 每次都"没有变化"，于是快照之后再也不刷新，
+     * 服务器日志干干净净。用户的原话是"接不到实时数据只有历史数据"。
+     *
+     * 老形状必须继续认：早期录制的回放包（.rclog）里就是老形状。
+     */
+    public static String streamName(JSONObject rec) {
+        if (rec == null) {
+            return "";
+        }
+        String target = rec.optString("target", "");
+        if (!"feed".equals(target)) {
+            return target;                     // 老形状：target 本身就是流名
+        }
+        JSONArray args = rec.optJSONArray("arguments");
+        return (args == null || args.length() == 0) ? "" : args.optString(0, "");
+    }
+
+    /** type=1 记录里的**载荷**（和 {@link #streamName} 配套，两种形状都认）。 */
+    public static JSONObject payloadOf(JSONObject rec) {
+        if (rec == null) {
+            return null;
+        }
+        JSONArray args = rec.optJSONArray("arguments");
+        if (args == null || args.length() == 0) {
+            return null;
+        }
+        if (!"feed".equals(rec.optString("target", ""))) {
+            return args.optJSONObject(0);      // 老形状
+        }
+        return args.length() >= 2 ? args.optJSONObject(1) : null;   // 新形状
     }
 
     /** type 3：整份快照，把每个流都过一遍。 */
