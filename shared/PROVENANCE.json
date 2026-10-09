@@ -1,10 +1,10 @@
 {
-  "app_commit": "a623e23271c4abd96a13e23d9c611851b91fe2c2",
-  "app_commit_date": "2026-10-07T02:14:57+08:00",
-  "app_commit_short": "a623e23",
+  "app_commit": "a3eba6cc2499b5cdb18b57d6b2b18e9508827433",
+  "app_commit_date": "2026-10-09T17:01:57+08:00",
+  "app_commit_short": "a3eba6c",
   "app_repo": "HA-F1-RaceControl",
-  "app_subject": "README：加上同族 Windows 版的说明",
-  "app_worktree_dirty": true,
+  "app_subject": "3.2.1：实时数据恢复了 —— 官方把增量消息的形状改了",
+  "app_worktree_dirty": false,
   "file_count": 21,
   "files": {
     "com/haf1/racecontrol/AlertGate.java": "0f732842e4d1259270f1d88c2fb08cf4a1d8c07c1b8d094be6a2cc7b16d7c7a9",
@@ -29,5 +29,5 @@
     "stub/org/json/JSONObject.java": "7511706be61e8eca7be189a62a7b7ff678787437b252de5478235b400904b2f8",
     "stub/org/json/JSONTokener.java": "c7a1ca309bfe5b71b8a11de79d82abb9402fc8ef19e080600116e54b239fc826"
   },
-  "synced_at": "2026-10-09T16:40:37+08:00"
+  "synced_at": "2026-10-09T17:10:00+08:00"
 }
