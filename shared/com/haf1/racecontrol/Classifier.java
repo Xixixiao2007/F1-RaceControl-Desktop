@@ -268,6 +268,38 @@ public final class Classifier {
         return K_CHEQUERED.equals(kind);
     }
 
+    /** 圆环上"没有旗语"的区段底色（深蓝灰）。 */
+    public static final int RING_IDLE = 0xFF455A64;
+    /** 圆环上单黄区段。 */
+    public static final int RING_YELLOW = 0xFFFFF176;
+    /** 圆环上双黄区段。 */
+    public static final int RING_DOUBLE_YELLOW = 0xFFFFEB3B;
+
+    /**
+     * 圆环上某个区段的颜色 —— **只看区段级旗语，不看全赛道状态**。
+     *
+     * ★ 这条规则是用户指出来的（"安卓端单黄旗会全赛道显示"）。
+     *   老代码在 {@code RightPanelView.segmentColour} 里写的是
+     *   {@code if (global == YELLOW || 该区段黄) 整圈黄}。而官方 TrackStatus 流的
+     *   "2"（黄旗）在**只有单个区段**黄旗时也会发 —— 于是 global=YELLOW，
+     *   整圈都染成黄的，看着就像全赛道黄旗。
+     *
+     *   用户的规则：**全赛道旗语放在圈内显示**（见 RightPanelView 圆心的色块和文字），
+     *   圈上只表达区段。所以这里刻意**不接受** global 参数 —— 让"整圈染色"这件事
+     *   根本无从写出来。
+     */
+    public static int ringSectorColour(int sec, java.util.List<Integer> doubleYellow,
+                                       java.util.List<Integer> yellow) {
+        Integer s = Integer.valueOf(sec);
+        if (doubleYellow != null && doubleYellow.contains(s)) {
+            return RING_DOUBLE_YELLOW;
+        }
+        if (yellow != null && yellow.contains(s)) {
+            return RING_YELLOW;
+        }
+        return RING_IDLE;
+    }
+
     /** 棋盘格的浅色格。 */
     public static int checkerLight() {
         return 0xFFFFFFFF;

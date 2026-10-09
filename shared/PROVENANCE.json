@@ -4,11 +4,11 @@
   "app_commit_short": "a3eba6c",
   "app_repo": "HA-F1-RaceControl",
   "app_subject": "3.2.1：实时数据恢复了 —— 官方把增量消息的形状改了",
-  "app_worktree_dirty": false,
+  "app_worktree_dirty": true,
   "file_count": 21,
   "files": {
     "com/haf1/racecontrol/AlertGate.java": "0f732842e4d1259270f1d88c2fb08cf4a1d8c07c1b8d094be6a2cc7b16d7c7a9",
-    "com/haf1/racecontrol/Classifier.java": "5b5a6833971ddf04c78f1099fa305b8c5a84096da7546a7b37955cd7c6f703c4",
+    "com/haf1/racecontrol/Classifier.java": "ed270c531adb25ee62d2cb39c499c2ece845d9875d692251b751007b7bbb03da",
     "com/haf1/racecontrol/F1Client.java": "1e0ff01f8e677eccc091c178e0f7688404e688eaf59ab7532c36c3adce2704ec",
     "com/haf1/racecontrol/F1Feed.java": "97e8d2a306f5038beae1abbf82c9528e66369f407f28e3a0649bfb119b5abceb",
     "com/haf1/racecontrol/F1Layout.java": "d7bfce526055195128158c0815c8ca511e0dfc37bfcb33e9fdf4bf5f7ea4303b",
@@ -29,5 +29,5 @@
     "stub/org/json/JSONObject.java": "7511706be61e8eca7be189a62a7b7ff678787437b252de5478235b400904b2f8",
     "stub/org/json/JSONTokener.java": "c7a1ca309bfe5b71b8a11de79d82abb9402fc8ef19e080600116e54b239fc826"
   },
-  "synced_at": "2026-10-09T17:10:00+08:00"
+  "synced_at": "2026-10-09T18:10:36+08:00"
 }
