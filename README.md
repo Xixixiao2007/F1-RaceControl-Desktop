@@ -66,12 +66,12 @@ python tools\build.py --run -- --replay ..\F1-RaceControl\tools\mock_data\bahrai
 | id | 名称 |
 | --- | --- |
 | `flags` | 顶部旗语栏 |
-| `ring` | 车手圆环（区段状态） |
-| `track` | 赛道图 |
+| `ring` | 赛道图（环形区段状态，安卓里也叫赛道图） |
+| `track` | 赛道状态（文字汇总：旗语、区段、TrackStatus 码） |
 | `tyres` | 轮胎 / 进站（3 列 × 8 行） |
 | `timing` | 成绩榜 |
 | `weather` | 天气 |
-| `fastest` | 个人最快圈 |
+| `fastest` | 个人最快圈（车手名带车队颜色） |
 | `session` | 环节 |
 | `messages` | 赛事通报 |
 

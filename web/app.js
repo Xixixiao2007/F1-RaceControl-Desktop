@@ -417,7 +417,7 @@
 
   function renderTrack(box) {
     clear(box);
-    panelTitle(box, '赛道图（区段）');
+    panelTitle(box, '赛道状态');
     var st = state, track = (st && st.track) || {};
     box.appendChild(el('div', 'big', track.label || '—'));
     box.appendChild(el('div', 'sub', track.detail || ''));
@@ -533,7 +533,15 @@
       var c = withBest[i];
       var tr = el('tr');
       tr.appendChild(el('td', 'num', (i + 1)));
-      tr.appendChild(el('td', 'who', c.tla));
+      // ★ 车手名带上车队颜色（和成绩榜一致）—— 用户要的：
+      //   "个人最快圈加上车队颜色"。色条用的是同一套 teamColour。
+      var who = el('td', 'who');
+      var bar = el('span', 'teambar');
+      bar.style.background = c.teamColour
+        ? ('#' + c.teamColour.replace('#', '')) : '#555';
+      who.appendChild(bar);
+      who.appendChild(el('span', null, c.tla));
+      tr.appendChild(who);
       tr.appendChild(el('td', 'mono', c.bestLap));
       t.appendChild(tr);
     }
@@ -554,7 +562,9 @@
     panelTitle(box, '环节');
     var r = (state && state.race) || {};
     var rows = [
-      ['会议', r.meeting], ['赛道', r.circuit], ['环节', r.session],
+      // ★ 别把大奖赛叫"会议" —— meeting 是 F1 的说法（分站/大奖赛），
+      //   中文"会议"完全是另一回事（用户指出来了）。
+      ['大奖赛', r.meeting], ['赛道', r.circuit], ['环节', r.session],
       ['状态', r.status], ['剩余', r.remaining],
       ['圈数', (r.lap || 0) + ' / ' + (r.totalLaps || 0)]
     ];
@@ -637,7 +647,11 @@
   };
 
   var TITLES = {
-    flags: '顶部旗语栏', ring: '车手圆环', track: '赛道图', tyres: '轮胎进站',
+    // ★ 圆环就叫「赛道图」—— 它画的就是赛道（一圈区段），和安卓一致
+    //   （安卓 MODE_NAMES 第一项就是"赛道图"）。以前这里写"车手圆环"，
+    //   用户直接指出来了。下面那个 track 板其实是**文字**状态汇总，不是地图，
+    //   所以改名"赛道状态"，免得两块板同名。
+    flags: '顶部旗语栏', ring: '赛道图', track: '赛道状态', tyres: '轮胎进站',
     timing: '成绩榜', weather: '天气', fastest: '最快圈', session: '环节',
     messages: '赛事通报'
   };

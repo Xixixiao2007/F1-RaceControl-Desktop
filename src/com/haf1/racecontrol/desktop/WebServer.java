@@ -49,8 +49,10 @@ public final class WebServer {
     /** 可单独拉出的看板。顺序就是界面上的顺序。 */
     public static final String[][] BOARDS = {
             {"flags", "顶部旗语栏"},
-            {"ring", "车手圆环"},
-            {"track", "赛道图"},
+            // ring 就是赛道图（一圈区段），和安卓的叫法一致；track 是文字汇总，
+            // 所以叫"赛道状态" —— 两块板不能同名。
+            {"ring", "赛道图"},
+            {"track", "赛道状态"},
             {"tyres", "轮胎进站"},
             {"timing", "成绩榜"},
             {"weather", "天气"},
