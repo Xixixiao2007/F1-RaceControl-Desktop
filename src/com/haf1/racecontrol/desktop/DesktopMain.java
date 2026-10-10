@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.haf1.racecontrol.DelayGate;
 import com.haf1.racecontrol.F1Client;
 import com.haf1.racecontrol.FeedSource;
 import com.haf1.racecontrol.ReplayClient;
@@ -23,7 +24,7 @@ import com.haf1.racecontrol.ReplayClient;
  */
 public final class DesktopMain {
 
-    public static final String VERSION = "0.1.10";
+    public static final String VERSION = "0.1.11";
     public static final int DEFAULT_PORT = 8720;
 
     private DesktopMain() {
@@ -73,6 +74,16 @@ public final class DesktopMain {
         }
         core.attach(src);
 
+        // 显示延时：命令行给了就用命令行；没给就用上次记住的（用户边看边调过的值）。
+        // ★ 放在 attach 之后：setDelaySeconds 要能找到数据源。
+        final int delay = o.delaySet ? o.delay : DelayStore.load();
+        core.setDelaySeconds(delay);
+        if (o.delaySet) {
+            // 命令行给的值也要记住 —— 和网页上调一样。文档里写的是"挑好的值
+            // 会记住"，但第一版只有网页那条路会落盘（验证者读代码时发现的）。
+            DelayStore.save(delay);
+        }
+
         Path webDir = WebServer.findWebDir(o.web);
         // 窗口程序必须在这里就定下来：Web 服务器要用它来实现
         // 「在网页上点某块面板 → 弹出独立小窗」。
@@ -91,6 +102,10 @@ public final class DesktopMain {
                 ? "回放 " + o.replayLabel + "（" + o.speed + " 倍速）"
                 : "官方公开流（实时）"));
         System.out.println("  本机     : " + Firewall.url("127.0.0.1", port));
+        if (o.replay == null && delay > 0) {
+            System.out.println("  显示延时 : " + delay + " 秒（整个界面滞后，用来对齐"
+                    + "有延迟的直播画面；网页上那对 −/＋ 可以随时调）");
+        }
         if (lan.isEmpty()) {
             System.out.println("  局域网   : （没找到局域网地址）");
         } else {
@@ -326,6 +341,10 @@ public final class DesktopMain {
         System.out.println("  --firewall-check   只检查防火墙状态和端口监听，不做任何改动、不提权");
         System.out.println("  --replay FILE      放 .rclog 回放文件（不连网，用来演练界面）");
         System.out.println("  --speed N          回放倍速（默认 60）");
+        System.out.println("  --delay SEC        显示延时（秒）：整个界面滞后 SEC 秒，"
+                + "用来对齐有延迟的");
+        System.out.println("                     电视/直播画面。0 = 关闭（默认）。"
+                + "网页上也能随时调。");
         System.out.println("  --main-size WxH    主窗口尺寸（默认 1600x900）");
         System.out.println("  --board-size WxH   看板窗口尺寸（默认 620x420）");
         System.out.println("  --no-window        只起服务器，不开任何窗口");
@@ -357,6 +376,9 @@ public final class DesktopMain {
         String replay;
         String replayLabel = "";
         int speed = 60;
+        /** 显示延时（秒）：整个界面滞后 N 秒去对齐有延迟的直播画面。0 = 关闭。 */
+        int delay;
+        boolean delaySet;
         boolean help;
         boolean listBoards;
         int mainWidth = 1600;
@@ -403,6 +425,12 @@ public final class DesktopMain {
                     if (o.speed <= 0) {
                         throw new IllegalArgumentException("倍速要大于 0");
                     }
+                } else if ("--delay".equals(s)) {
+                    o.delay = delaySec(next(a, ++i, s));
+                    o.delaySet = true;
+                } else if (s.startsWith("--delay=")) {
+                    o.delay = delaySec(s.substring(8));
+                    o.delaySet = true;
                 } else if ("--main-size".equals(s)) {
                     int[] wh = size(next(a, ++i, s));
                     o.mainWidth = wh[0];
@@ -446,6 +474,16 @@ public final class DesktopMain {
                 throw new IllegalArgumentException(flag + " 后面要跟一个值");
             }
             return a[i];
+        }
+
+        /** 解析 `--delay` 的秒数并校验。上限和共享源码里的 DelayGate 用同一个常量。 */
+        private static int delaySec(String v) {
+            int n = Integer.parseInt(v.trim());
+            if (n < 0 || n > DelayGate.MAX_SECONDS) {
+                throw new IllegalArgumentException(
+                        "延时范围 0 - " + DelayGate.MAX_SECONDS + " 秒");
+            }
+            return n;
         }
 
         private static int[] size(String s) {

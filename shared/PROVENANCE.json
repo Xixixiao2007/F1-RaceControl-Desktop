@@ -1,21 +1,22 @@
 {
-  "app_commit": "a3eba6cc2499b5cdb18b57d6b2b18e9508827433",
-  "app_commit_date": "2026-10-09T17:01:57+08:00",
-  "app_commit_short": "a3eba6c",
+  "app_commit": "871f29a1f6eff56733536d938fafa95703b23bc1",
+  "app_commit_date": "2026-10-09T18:11:10+08:00",
+  "app_commit_short": "871f29a",
   "app_repo": "HA-F1-RaceControl",
-  "app_subject": "3.2.1：实时数据恢复了 —— 官方把增量消息的形状改了",
+  "app_subject": "3.2.2：圆环只画区段，全赛道旗语挪到圈内",
   "app_worktree_dirty": true,
-  "file_count": 21,
+  "file_count": 22,
   "files": {
     "com/haf1/racecontrol/AlertGate.java": "0f732842e4d1259270f1d88c2fb08cf4a1d8c07c1b8d094be6a2cc7b16d7c7a9",
     "com/haf1/racecontrol/Classifier.java": "ed270c531adb25ee62d2cb39c499c2ece845d9875d692251b751007b7bbb03da",
-    "com/haf1/racecontrol/F1Client.java": "1e0ff01f8e677eccc091c178e0f7688404e688eaf59ab7532c36c3adce2704ec",
+    "com/haf1/racecontrol/DelayGate.java": "3c5730da7f9c40606728cea57172f74ff297c1bd2782ce2ef4edd19848fc9e6d",
+    "com/haf1/racecontrol/F1Client.java": "9cab1dd43b2d1e791b1e1ba09cb6acbd74963d398a7b31088b4343a0bec05a83",
     "com/haf1/racecontrol/F1Feed.java": "97e8d2a306f5038beae1abbf82c9528e66369f407f28e3a0649bfb119b5abceb",
     "com/haf1/racecontrol/F1Layout.java": "d7bfce526055195128158c0815c8ca511e0dfc37bfcb33e9fdf4bf5f7ea4303b",
     "com/haf1/racecontrol/FeedSource.java": "db1cba962d97cecb1d51fa615bb1e8ed9b9a99afbb1ba31f40f7c2862e7e881d",
     "com/haf1/racecontrol/HaClient.java": "f3fb0025b3ea91e096f7e78fbba0b23bac6928e06bf59022b5a849aa26555a99",
     "com/haf1/racecontrol/MessageStore.java": "91bcb8c2674d9c07ecd24eeb42b6b5f850dfc596862e92d6da76ea47b05eb94e",
-    "com/haf1/racecontrol/Prefs.java": "ec4f8de55c50a5689f2498378f3d263c8e8e094a7de26cd707448ac2cb1631e6",
+    "com/haf1/racecontrol/Prefs.java": "c4b187f07cea385ae9fa951e6064ee82db391257d6eb779708054151b968e2a2",
     "com/haf1/racecontrol/RaceMessage.java": "e5a6e3b7d8e7794e454006ca3f9175559759294c1edcd77ea3d10291ea8e9b45",
     "com/haf1/racecontrol/ReplayClient.java": "ce651e06dd508a4687fcd637da0059b3de075f3163cf013c32a9ce749f3ebe79",
     "com/haf1/racecontrol/TrackState.java": "c703b163d79518b75b83631300c3ddba3670c8ca27f759483a4e246c6c67bfc1",
@@ -29,5 +30,5 @@
     "stub/org/json/JSONObject.java": "7511706be61e8eca7be189a62a7b7ff678787437b252de5478235b400904b2f8",
     "stub/org/json/JSONTokener.java": "c7a1ca309bfe5b71b8a11de79d82abb9402fc8ef19e080600116e54b239fc826"
   },
-  "synced_at": "2026-10-09T18:10:36+08:00"
+  "synced_at": "2026-10-10T13:49:33+08:00"
 }

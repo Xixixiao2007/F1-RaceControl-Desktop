@@ -43,6 +43,15 @@ public class Prefs {
     public int pollSeconds = 2;
     public boolean realtimeEnabled = true;
 
+    /**
+     * 消息延时（秒）：把**整个显示**滞后 N 秒，去对齐有延迟的电视/直播画面。
+     *
+     * 为什么需要：电视/网络直播比官方计时源晚几秒，不延时的话 App 会"剧透"
+     * 电视上还没发生的画面（用户原话："消息延时，自定义延时秒数以同步直播流"）。
+     * 0 = 关闭；上限见 {@link DelayGate#MAX_SECONDS}。
+     */
+    public int delaySec = 0;
+
     // ---- 提醒 ----
     public boolean soundEnabled = true;
     public boolean vibrateEnabled = true;
@@ -134,6 +143,7 @@ public class Prefs {
         p.historyHours = clamp(sp.getInt("hours", 12), 1, 168);
         p.pollSeconds = clampPoll(sp.getInt("poll", 2));
         p.realtimeEnabled = sp.getBoolean("realtime", true);
+        p.delaySec = clamp(sp.getInt("delay", 0), 0, DelayGate.MAX_SECONDS);
 
         p.soundEnabled = sp.getBoolean("sound", true);
         p.vibrateEnabled = sp.getBoolean("vibrate", true);
@@ -171,6 +181,7 @@ public class Prefs {
                 .putInt("hours", historyHours)
                 .putInt("poll", clampPoll(pollSeconds))
                 .putBoolean("realtime", realtimeEnabled)
+                .putInt("delay", clamp(delaySec, 0, DelayGate.MAX_SECONDS))
                 .putBoolean("sound", soundEnabled)
                 .putBoolean("vibrate", vibrateEnabled)
                 .putBoolean("wake", screenWakeEnabled)

@@ -346,6 +346,40 @@ public final class WebServer {
                 sendJson(ex, 200, o.done());
             }
         });
+        /*
+         * 显示延时（秒）：整个界面滞后 N 秒，用来对齐有延迟的直播画面。
+         *
+         * 不带参数 = 读当前值；带 sec=N = 设置，**立刻生效、不用重启**
+         * （网页头部那对 −/＋ 按钮就调这个）。设完顺手落盘，下次开机还是它 ——
+         * 用户是边看边调的。
+         */
+        server.createContext("/api/delay", new HttpHandler() {
+            @Override
+            public void handle(HttpExchange ex) throws IOException {
+                Integer want = delayParam(ex.getRequestURI().getQuery());
+                boolean applied = false;
+                String note = "";
+                if (want != null) {
+                    applied = core.setDelaySeconds(want.intValue());
+                    if (applied) {
+                        DelayStore.save(core.delaySeconds());
+                    } else {
+                        // ★ 回放模式：设置被忽略，而且**绝不能落盘** ——
+                        //   否则会把直播模式存下来的值抹成 0（验证者读代码抓到的）。
+                        note = "回放模式没有显示延时（回放本身就是时间轴）";
+                    }
+                }
+                Json.Obj o = new Json.Obj();
+                o.put("delaySec", core.delaySeconds());
+                o.put("queued", core.delayQueued());
+                o.put("maxSec", com.haf1.racecontrol.DelayGate.MAX_SECONDS);
+                o.put("applied", applied);
+                if (note.length() > 0) {
+                    o.put("note", note);
+                }
+                sendJson(ex, 200, o.done());
+            }
+        });
         server.createContext("/api/events", new HttpHandler() {
             @Override
             public void handle(HttpExchange ex) throws IOException {
@@ -662,6 +696,34 @@ public final class WebServer {
     private static boolean fromShell(HttpExchange ex) {
         String ua = ex.getRequestHeaders().getFirst("User-Agent");
         return ua != null && ua.indexOf(SHELL_MARKER) >= 0;
+    }
+
+    /**
+     * 从 query 里取 `sec=N`（截到 0..{@code DelayGate.MAX_SECONDS}）。
+     * 没有这段或者不是数字就返回 null（= 只读，不改）。
+     *
+     * 不合法不抛异常：这是网页上一对加减按钮，回 500 只会让页面看着像坏了。
+     */
+    private static Integer delayParam(String q) {
+        if (q == null) {
+            return null;
+        }
+        String[] parts = q.split("&");
+        for (int i = 0; i < parts.length; i++) {
+            if (parts[i].startsWith("sec=")) {
+                try {
+                    int v = Integer.parseInt(parts[i].substring(4).trim());
+                    if (v < 0) {
+                        v = 0;
+                    }
+                    int max = com.haf1.racecontrol.DelayGate.MAX_SECONDS;
+                    return Integer.valueOf(v > max ? max : v);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     /** 能不能 + 想不想要，两个都满足才是"该开原生窗口"。 */

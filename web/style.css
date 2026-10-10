@@ -327,3 +327,14 @@ table.kv td { padding: 2px 0; }
   background: transparent; color: #90a4ae;
 }
 .strip-btn.on { background: #00897b; color: #fff; }
+
+/* ---------- 显示延时控件（对齐有延迟的直播画面） ---------- */
+/* 桌面版在头部：−/＋ 各调 5 秒；手机版在状态行：一个「调」按钮点开输入框 */
+.delay-ctl { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; }
+.delay-val { font-size: 11px; color: #8b949e; white-space: nowrap; }
+.delay-btn {
+  font-family: inherit; font-size: 12px; line-height: 1; padding: 3px 7px;
+  border-radius: 4px; cursor: pointer; flex: 0 0 auto;
+  border: 1px solid #30363d; background: #21262d; color: #adbac7;
+}
+.delay-btn:hover { background: #30363d; }

@@ -98,6 +98,14 @@ public class F1Client implements FeedSource {
     private OutputStream out;
     private String lastError = "";
 
+    /**
+     * 延时闸门 —— 用户要的"消息延时"：整个显示滞后 N 秒，去对齐有延迟的
+     * 电视/直播画面。为 null 表示还没建（第一条连接建立时懒建）。
+     */
+    private volatile DelayGate gate;
+    /** 延时秒数。UI 线程随时可改（改了立即生效，不用重连）。 */
+    private volatile int delaySec = 0;
+
     public F1Client(Listener listener) {
         this.feed = new F1Feed();
         this.listener = listener;
@@ -108,6 +116,82 @@ public class F1Client implements FeedSource {
 
     public F1Feed feed() {
         return feed;
+    }
+
+    /**
+     * 设置显示延时（秒）。0 = 关闭。可以从 UI 线程随时调，**不用重连**。
+     *
+     * 语义（用户确认过）：调大 = 画面先停住、N 秒后继续；调小 = 立即放行
+     * 已经到期的那些。细节见 {@link DelayGate}。
+     */
+    public void setDelaySeconds(int sec) {
+        if (sec < 0) {
+            sec = 0;
+        }
+        if (sec > DelayGate.MAX_SECONDS) {
+            sec = DelayGate.MAX_SECONDS;
+        }
+        delaySec = sec;
+        DelayGate g = gate;
+        if (g != null) {
+            g.setDelayMs(sec * 1000L);
+        }
+    }
+
+    /**
+     * 处理一条已经解析好的记录：**整份快照立刻喂给 feed**（并清掉队列里
+     * 属于上一份状态的增量），**增量交给延时闸门**按用户设的秒数放行。
+     *
+     * 包内可见（不是 private）是**为了单测**：这样"延时到底接没接上"能被
+     * 确定性地钉死，而不必去连真的官方流 —— 那边有没有比赛全看运气
+     * （实测过：非比赛时段只有一份旧快照，一条增量都没有，量不出延时）。
+     *
+     * @param nowMs 到达时刻，由调用方给（单测注入，确定性）
+     */
+    void dispatch(JSONObject rec, long nowMs) {
+        if (rec == null) {
+            return;
+        }
+        DelayGate g = ensureGate();
+        if (rec.optInt("type", -1) == 3) {
+            g.clear();
+            if (feed.onRecord(rec) && listener != null) {
+                listener.onFeed(feed);
+            }
+        } else {
+            g.offer(rec, nowMs);
+        }
+    }
+
+    public int delaySeconds() {
+        return delaySec;
+    }
+
+    /** 队列里还压着多少条（给界面显示"正在滞后"用）。 */
+    public int queuedRecords() {
+        DelayGate g = gate;
+        return g == null ? 0 : g.queued();
+    }
+
+    /**
+     * 懒建闸门。只会在读线程里被调用（连接是串行的），所以不用加锁；
+     * 建好后 {@link #setDelaySeconds} 才能改它。
+     */
+    private DelayGate ensureGate() {
+        DelayGate g = gate;
+        if (g == null) {
+            g = new DelayGate(delaySec * 1000L, new DelayGate.Sink() {
+                public void accept(JSONObject rec) {
+                    boolean changed = feed.onRecord(rec);
+                    if (changed && listener != null) {
+                        listener.onFeed(feed);
+                    }
+                }
+            });
+            g.start();
+            gate = g;
+        }
+        return g;
     }
 
     public String lastError() {
@@ -137,6 +221,10 @@ public class F1Client implements FeedSource {
      */
     public void stop() {
         closed = true;
+        DelayGate g = gate;
+        if (g != null) {
+            g.stop();
+        }
         Socket s = socket;
         socket = null;              // 重复调用时别关第二次
         if (s != null) {
@@ -284,7 +372,6 @@ public class F1Client implements FeedSource {
             String[] records = pending.split(String.valueOf(RS), -1);
             // 最后一段可能是不完整的（下一次才补齐），留着
             pending = records[records.length - 1];
-            boolean changed = false;
             for (int i = 0; i < records.length - 1; i++) {
                 String rec = records[i].trim();
                 if (rec.length() == 0) {
@@ -310,10 +397,10 @@ public class F1Client implements FeedSource {
                         listener.onOpen();
                     }
                 }
-                changed |= feed.onRecord(o);
-            }
-            if (changed && listener != null) {
-                listener.onFeed(feed);
+                // 分流：快照立刻进 feed，增量按用户设的延时放行（见 dispatch）。
+                // "有变化"的通知由闸门那个 Sink 负责 —— 增量要等放行时才知道
+                // 变没变，这里拿不到结果。
+                dispatch(o, System.currentTimeMillis());
             }
         }
         closeQuietly();

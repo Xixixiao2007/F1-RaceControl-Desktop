@@ -737,6 +737,63 @@
     return b;
   }
 
+  /**
+   * 显示延时控件：整个界面滞后 N 秒，用来对齐有延迟的电视/直播画面。
+   *
+   * 为什么放在网页上、而且能边看边调：不同直播源的延迟不一样（几秒到几十秒），
+   * 得一边看一边微调；改完**立刻生效、不用重启**（走 /api/delay）。
+   * 手机那一行太窄，只给一个「调」按钮点开输入框；桌面版给 −/＋。
+   */
+  function delayControl(compact) {
+    var cur = (state && state.delaySec) || 0;
+    var box = el('span', 'delay-ctl');
+    var label = el('span', 'delay-val', cur > 0 ? ('延时 ' + cur + 's') : '延时 关');
+    label.title = '整个界面滞后多少秒（对齐有延迟的直播画面）。0 = 关闭。';
+    if (state && state.delayQueued > 0) {
+      label.title += ' 现在队列里压着 ' + state.delayQueued + ' 条。';
+    }
+    box.appendChild(label);
+    if (compact) {
+      var one = el('button', 'delay-btn', '调');
+      one.type = 'button';
+      one.addEventListener('click', function () {
+        var v = window.prompt('显示延时（秒，0 = 关闭）：', String(cur));
+        if (v !== null && v !== '') { setDelay(parseInt(v, 10)); }
+      });
+      box.appendChild(one);
+      return box;
+    }
+    var minus = el('button', 'delay-btn', '−');
+    var plus = el('button', 'delay-btn', '＋');
+    minus.type = 'button';
+    plus.type = 'button';
+    minus.addEventListener('click', function () { setDelay(cur - 5); });
+    plus.addEventListener('click', function () { setDelay(cur + 5); });
+    box.appendChild(minus);
+    box.appendChild(plus);
+    return box;
+  }
+
+  /** 提交新的延时（秒）并重画。0 = 关闭。 */
+  function setDelay(sec) {
+    if (isNaN(sec)) { return; }
+    if (sec < 0) { sec = 0; }
+    if (sec > 600) { sec = 600; }
+    var req = new XMLHttpRequest();
+    req.open('POST', '/api/delay?sec=' + sec, true);
+    req.onload = function () {
+      try {
+        var r = JSON.parse(req.responseText);
+        // 回放模式：服务端会忽略设置并如实说明（applied=false）。
+        // 这时候别让按钮看起来像生效了 —— 那才是骗人。
+        if (r && r.applied === false && r.note) { notice(r.note); }
+      } catch (e) { /* 响应不是 JSON 就算了，重画看状态 */ }
+      repaint();
+    };
+    req.onerror = function () { notice('延时没改成（服务器没响应）'); };
+    req.send();
+  }
+
   /** 在手机状态行上说一句，8 秒后自己消失。 */
   function notice(msg) {
     phoneNotice = msg;
@@ -775,6 +832,8 @@
     if (fs) {
       row.appendChild(fs);
     }
+    // 手机上也要能调延时（那一行放不下 −/＋，给一个「调」点开输入框）
+    row.appendChild(delayControl(true));
     return row;
   }
 
@@ -862,8 +921,8 @@
     var right = el('div', 'm-status');
     var dot = el('span', 'dot' + (connected ? ' ok' : ' bad'));
     right.appendChild(dot);
-    right.appendChild(el('span', null, connected
-      ? ('已连接 · ' + ago(lastPush)) : (errNote || '未连接')));
+    right.appendChild(el('span', null, phoneNotice || (connected
+      ? ('已连接 · ' + ago(lastPush)) : (errNote || '未连接'))));
     if (state && state.replay) {
       right.appendChild(el('span', 'badge', '回放 ' + (state.replayName || '')));
     }
@@ -874,6 +933,8 @@
     if (all) {
       right.appendChild(all);
     }
+    // 显示延时：桌面版就在头部，随时调（点一下立刻生效，不用重启）
+    right.appendChild(delayControl(false));
     head.appendChild(right);
 
     root.appendChild(head);

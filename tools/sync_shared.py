@@ -49,6 +49,7 @@ SHARED_SOURCES = [
     "F1Feed.java",        # 增量深合并 -> 状态
     "F1Layout.java",      # 界面几何（圆环 / 轮胎面板 / 旗语栏），纯算术
     "FeedSource.java",    # 数据源接口（真流 / 回放）
+    "DelayGate.java",     # 显示延时闸门（对齐有延迟的直播画面），纯逻辑
     "ReplayClient.java",  # 回放 .rclog（和安卓同一个文件格式）
     "WsFrame.java",       # RFC6455 帧编解码
     "RaceMessage.java",   # 消息解析与去重键

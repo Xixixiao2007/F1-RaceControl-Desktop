@@ -102,6 +102,38 @@ public final class AppCore implements F1Client.Listener {
         return s == null ? emptyFeed : s.feed();
     }
 
+    /**
+     * 显示延时（秒）。回放模式下没有延时（回放本身就是时间轴）。
+     *
+     * @see com.haf1.racecontrol.DelayGate
+     */
+    public int delaySeconds() {
+        FeedSource s = source;
+        return s instanceof F1Client ? ((F1Client) s).delaySeconds() : 0;
+    }
+
+    /** 还在队列里压着多少条（界面显示"正在滞后"用）。 */
+    public int delayQueued() {
+        FeedSource s = source;
+        return s instanceof F1Client ? ((F1Client) s).queuedRecords() : 0;
+    }
+
+    /**
+     * 改显示延时。**立即生效，不用重连** —— 用户可以边看边调。
+     *
+     * @return 是否真的应用了。回放模式下返回 false（回放本身就是时间轴，
+     *         延时没有意义）—— 调用方据此**不要**去落盘，否则会把直播模式
+     *         存下来的值抹成 0（这是验证者读代码时抓到的）。
+     */
+    public boolean setDelaySeconds(int sec) {
+        FeedSource s = source;
+        if (!(s instanceof F1Client)) {
+            return false;
+        }
+        ((F1Client) s).setDelaySeconds(sec);
+        return true;
+    }
+
     public boolean isOpen() {
         return open;
     }
@@ -156,6 +188,9 @@ public final class AppCore implements F1Client.Listener {
         o.put("updates", updates);
         o.put("lastUpdateAt", lastUpdateAt);
         o.put("serverTime", System.currentTimeMillis());
+        // 显示延时（秒）—— 网页上那对 −/＋ 按钮和"正在滞后"的提示都读它
+        o.put("delaySec", delaySeconds());
+        o.put("delayQueued", delayQueued());
 
         Json.Obj race = new Json.Obj();
         race.put("meeting", f.meetingName());
