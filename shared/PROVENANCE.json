@@ -1,10 +1,10 @@
 {
-  "app_commit": "871f29a1f6eff56733536d938fafa95703b23bc1",
-  "app_commit_date": "2026-10-09T18:11:10+08:00",
-  "app_commit_short": "871f29a",
+  "app_commit": "6ba8d832969e87c040c4b0ec72b49b1adb2c360c",
+  "app_commit_date": "2026-10-10T14:19:08+08:00",
+  "app_commit_short": "6ba8d83",
   "app_repo": "HA-F1-RaceControl",
-  "app_subject": "3.2.2：圆环只画区段，全赛道旗语挪到圈内",
-  "app_worktree_dirty": true,
+  "app_subject": "3.2.3：新功能 —— 消息延时（整个界面滞后 N 秒，对齐直播画面）",
+  "app_worktree_dirty": false,
   "file_count": 22,
   "files": {
     "com/haf1/racecontrol/AlertGate.java": "0f732842e4d1259270f1d88c2fb08cf4a1d8c07c1b8d094be6a2cc7b16d7c7a9",
@@ -30,5 +30,5 @@
     "stub/org/json/JSONObject.java": "7511706be61e8eca7be189a62a7b7ff678787437b252de5478235b400904b2f8",
     "stub/org/json/JSONTokener.java": "c7a1ca309bfe5b71b8a11de79d82abb9402fc8ef19e080600116e54b239fc826"
   },
-  "synced_at": "2026-10-10T13:49:33+08:00"
+  "synced_at": "2026-10-10T14:26:04+08:00"
 }
