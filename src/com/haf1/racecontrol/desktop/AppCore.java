@@ -310,6 +310,11 @@ public final class AppCore implements F1Client.Listener {
             o.put("interval", c.interval);
             o.put("bestLap", c.bestLap);
             o.put("label", c.label());
+            // 名次急剧后退的闪动提醒（5 秒 2 位 / 10 秒 3 位）。规则在共享的
+            // PositionFlash 里，安卓端用同一份；网页据此给那一行加闪动。
+            o.put("flash", c.flash);
+            o.put("drop5", c.drop5);
+            o.put("drop10", c.drop10);
             a.raw(o.done());
         }
         return a.done();

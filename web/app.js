@@ -486,12 +486,23 @@
       var tr = el('tr');
       if (c.retired) { tr.className = 'retired'; }
       if (c.inPit) { tr.className += ' inpitt'; }
+      // ★ 名次急剧后退（5 秒 ≥2 位 / 10 秒 ≥3 位）：整行闪动 + 后面标出掉了多少。
+      //   判定在共享的 PositionFlash 里（安卓端同一份规则），这里只负责显示。
+      if (c.flash) {
+        tr.className += ' posflash';
+        tr.title = '名次急退：'
+          + (c.drop5 >= 2 ? (c.drop5 + ' 位 / 5 秒') : (c.drop10 + ' 位 / 10 秒'));
+      }
       tr.appendChild(el('td', 'num', c.position || ''));
       var who = el('td', 'who');
       var bar = el('span', 'teambar');
       bar.style.background = c.teamColour ? ('#' + c.teamColour.replace('#', '')) : '#555';
       who.appendChild(bar);
       who.appendChild(el('span', null, c.tla + ' ' + (c.number || '')));
+      if (c.flash) {
+        who.appendChild(el('span', 'dropmark',
+          '▼' + (c.drop5 >= 2 ? c.drop5 : c.drop10)));
+      }
       tr.appendChild(who);
       tr.appendChild(el('td', null, c.gap || ''));
       tr.appendChild(el('td', null, c.interval || ''));

@@ -183,6 +183,18 @@ table.timing th {
 table.timing td { padding: 3px 4px; border-bottom: 1px solid #1b2129; }
 table.timing tr.retired td { color: #6e7681; text-decoration: line-through; }
 table.timing tr.inpitt td { background: #1d2530; }
+
+/* 名次急剧后退（5 秒 ≥2 位 / 10 秒 ≥3 位）：整行闪动 + 名字后面标 ▼N。
+   规则本身在共享的 PositionFlash 里，后端只把 flash/drop5/drop10 放进 JSON。 */
+@keyframes posFlash {
+  0%, 49% { background: #6b4a00; }
+  50%, 100% { background: transparent; }
+}
+table.timing tr.posflash td { animation: posFlash 0.8s steps(1, end) infinite; }
+.dropmark {
+  color: #ffb74d; font-size: 10px; margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
 td.num { width: 30px; color: #8b949e; }
 td.who { white-space: nowrap; }
 td.mono, .mono { font-variant-numeric: tabular-nums; }

@@ -60,6 +60,11 @@ public class F1Feed {
     public final TrackState track = new TrackState();
     /** 赛事控制消息列表（按 eventId 去重）。 */
     public final MessageStore messages = new MessageStore();
+    /**
+     * "名次急剧后退"的判定（5 秒 2 位 / 10 秒 3 位）——
+     * 名次页面据此给那一条车手闪动提醒。规则在 {@link PositionFlash}。
+     */
+    public final PositionFlash flash = new PositionFlash();
 
     /** 各流的累积状态。深合并写进这里。 */
     private final JSONObject state = new JSONObject();
@@ -439,6 +444,16 @@ public class F1Feed {
         /** 个人最快圈，例如 "1:38.220"。 */
         public String bestLap = "";
 
+        /**
+         * 名次是不是"急剧后退"（5 秒掉 ≥2 位，或 10 秒掉 ≥3 位）——
+         * 名次页面据此给这一条车手闪动提醒。判定在 {@link PositionFlash}。
+         */
+        public boolean flash = false;
+        /** 5 秒内掉了几位（界面显示"▼2"用）。 */
+        public int drop5 = 0;
+        /** 10 秒内掉了几位。 */
+        public int drop10 = 0;
+
         /** 供界面显示：有 TLA 用 TLA，否则用车号。 */
         public String label() {
             return tla.length() > 0 ? tla : number;
@@ -581,6 +596,21 @@ public class F1Feed {
                 return a.number.compareTo(b.number);
             }
         });
+
+        // ★ 顺便记一次名次采样 + 给每个车手打"要不要闪"的标记。
+        //   放在这里是因为**只有这里**拿得到完整且已排序的名次表；界面每秒会来
+        //   调几次，PositionFlash 内部按秒节流，多调不浪费。
+        //   规则（5 秒 2 位 / 10 秒 3 位）在 PositionFlash 里，两端共用一份。
+        long nowMs = System.currentTimeMillis();
+        for (int i = 0; i < out.size(); i++) {
+            flash.sample(out.get(i).number, out.get(i).position, nowMs);
+        }
+        for (int i = 0; i < out.size(); i++) {
+            Car c = out.get(i);
+            c.drop5 = flash.droppedIn(c.number, PositionFlash.SHORT_MS, nowMs);
+            c.drop10 = flash.droppedIn(c.number, PositionFlash.LONG_MS, nowMs);
+            c.flash = flash.flashing(c.number, nowMs);
+        }
         return out;
     }
 

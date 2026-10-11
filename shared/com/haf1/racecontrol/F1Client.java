@@ -155,6 +155,10 @@ public class F1Client implements FeedSource {
         DelayGate g = ensureGate();
         if (rec.optInt("type", -1) == 3) {
             g.clear();
+            // ★ 名次历史也要清：快照是"另一份状态"的起点（首次连接或重连），
+            //   拿断线前的名次跟它比会凭空掉出一大截 —— 那就是一次假闪动。
+            //   验证者指出 flash.clear() 从没被调用过，这儿正是它该在的地方。
+            feed.flash.clear();
             if (feed.onRecord(rec) && listener != null) {
                 listener.onFeed(feed);
             }
